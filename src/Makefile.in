@@ -1,0 +1,13 @@
+CFLAGS		+= $(EVENT_CFLAGS)
+LDFLAGS		+= -ldect $(EVENT_LDFLAGS)
+
+PROGRAMS	= dectmon
+
+dectmon-obj	+= event_ops.o
+dectmon-obj	+= dummy_ops.o
+dectmon-obj	+= debug.o
+dectmon-obj	+= dsc.o
+dectmon-obj	+= mac.o
+dectmon-obj	+= dlc.o
+dectmon-obj	+= nwk.o
+dectmon-obj	+= main.o

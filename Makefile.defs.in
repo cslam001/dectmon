@@ -1,0 +1,46 @@
+DEBUG		= @CONFIG_DEBUG@
+CC		= @CC@
+CPP		= @CPP@
+LEX		= @LEX@
+YACC		= @YACC@
+MKDIR_P		= @MKDIR_P@
+LN_S		= @LN_S@
+INSTALL		= @INSTALL@
+DOXYGEN		= @DOXYGEN@
+
+PACKAGE_STRING	= @PACKAGE_STRING@
+PACKAGE_VERSION = @PACKAGE_VERSION@
+PACKAGE_TARNAME	= @PACKAGE_TARNAME@
+
+prefix		= @prefix@
+exec_prefix	= @exec_prefix@
+sysconfdir	= @sysconfdir@
+datarootdir	= @datarootdir@
+mandir		= @mandir@
+docdir		= @docdir@
+pdfdir		= @pdfdir@
+confdir		= @sysconfdir@/dect
+
+LDFLAGS		+= @LDFLAGS@
+LDFLAGS		+= @LIBS@
+
+CPPFLAGS	+= @CPPFLAGS@
+
+CFLAGS		+= @CFLAGS@ @DEFS@
+CFLAGS		+= -include config.h -I include
+CFLAGS		+= -fvisibility=hidden
+CFLAGS		+= -fstack-protector-all
+
+CFLAGS		+= -Wall
+CFLAGS		+= -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations
+CFLAGS		+= -Wdeclaration-after-statement -Wsign-compare -Winit-self
+CFLAGS		+= -Wformat-nonliteral -Wformat-security -Wmissing-format-attribute
+CFLAGS		+= -Wcast-align -Wundef -Wbad-function-cast # -Wshadow
+CFLAGS		+= -Waggregate-return -Wunused -Wwrite-strings
+
+ifeq ($(DEBUG),y)
+CFLAGS		+= -g -DDEBUG
+endif
+
+EVENT_CFLAGS	+= @EVENT_CFLAGS@
+EVENT_LDFLAGS	+= @EVENT_LDFLAGS@

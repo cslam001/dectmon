@@ -1,0 +1,114 @@
+include Makefile.defs
+
+makedeps		+= $(SUBDIR)Makefile
+makedeps		+= Makefile
+makedeps		+= Makefile.defs
+makedeps		+= Makefile.rules
+
+configure:		configure.ac
+			sh autogen.sh
+
+%:			%.in	configure
+			sh configure
+
+%.o:			%.c	$(makedeps)
+			@/bin/echo -e "  CC\t\t$<"
+			$(CC) $(CFLAGS) -c -o $@ $<
+
+.%.d:			%.c	$(makedeps)
+			@/bin/echo -e "  DEP\t\t$<"
+			$(RM) $@
+			$(CC) -M $(CFLAGS) $< | sed 's,$(*F)\.o[ :]*,$*.o $@ : ,g' > $@
+
+%.c %.h:		%.y	$(makedeps)
+			@/bin/echo -e "  YACC\t\t$<"
+			$(YACC) $(YACCFLAGS) -d -o $@ $<
+
+%.c %.h:		%.l	$(makedeps)
+			@/bin/echo -e "  LEX\t\t$<"
+			$(LEX) -t --header-file=$(<:.l=.h) $< > $@
+
+%.8:			%.xml	$(makedeps)
+			@/bin/echo -e "  MAN\t\t$<"
+			docbook2x-man $<
+
+%.pdf:			%.xml	$(makedeps)
+			@/bin/echo -e "  PDF\t\t$<"
+			db2pdf $<
+
+define generic_template
+$(1)-obj		:= $$(patsubst %,$(SUBDIR)%,$$($(1)-obj))
+$(1)-depfiles		:= $$(patsubst $(SUBDIR)%.o,$(SUBDIR).%.d,$$($(1)-obj))
+
+.PHONY:	$(1)-clean
+$(1)-clean:
+			@/bin/echo -e "  CLEAN\t\t$(1)"
+			$$(RM) $$($(1)-obj) $$($(1)-depfiles) \
+			       $$($(1)-clean_files) $$($(1)-extra-clean-files)
+clean_targets		+= $(1)-clean
+
+.PHONY:			$(1)-install
+
+ifneq ($(MAKECMDGOALS),clean)
+-include $$($(1)-depfiles)
+endif
+endef
+
+define program_template
+$(eval $(call generic_template,$(1)))
+
+$(SUBDIR)$(1):		$$($(1)-extra-targets) $$($(1)-obj)
+			@/bin/echo -e "  LD\t\t$$@"
+			$$(CC) $$($(1)-obj) $$($(1)-ldflags) $$(LDFLAGS) -o $$@
+all_targets		+= $(SUBDIR)$(1)
+
+$(1)-clean_files	+= $(SUBDIR)$(1)
+
+$(1)-install:
+			@/bin/echo -e "  INSTALL\t$1"
+			$(MKDIR_P) $$(DESTDIR)/$$($(1)-destdir)
+			$(INSTALL) -m 755 -o root -g root $(SUBDIR)$(1) \
+				$$(DESTDIR)/$$($(1)-destdir)/$(1)
+install_targets		+= $(1)-install
+endef
+
+define library_template
+$(eval $(call generic_template,$(1)))
+
+$(SUBDIR)lib$(1).so:	$$($(1)-extra-targets) $$($(1)-obj)
+			@/bin/echo -e "  LD\t\t$$@"
+			$$(CC) -shared -Wl,-soname,lib$(1).so.0 $$($(1)-obj) $$($(1)-ldflags) $$(LDFLAGS) -o $$@
+			$(LN_S) -f lib$(1).so $$@.0
+all_targets		+= $(SUBDIR)lib$(1).so
+
+$(1)-clean_files	+= $(SUBDIR)lib$(1).so $(SUBDIR)lib$(1).so.0
+
+$(1)-install:
+			@/bin/echo -e "  INSTALL\t$1"
+			$(MKDIR_P) $$(DESTDIR)/$$($(1)-destdir)
+			$(INSTALL) -m 755 -o root -g root $(SUBDIR)lib$(1).so \
+				   $$(DESTDIR)/$$($(1)-destdir)/lib$(1).so.$(PACKAGE_VERSION)
+			$(LN_S) -f lib$(1).so.$(PACKAGE_VERSION) \
+				   $(DESTDIR)/$$($(1)-destdir)/lib$(1).so.0
+			$(LN_S) -f lib$(1).so.$(PACKAGE_VERSION) \
+				   $(DESTDIR)/$$($(1)-destdir)/lib$(1).so
+install_targets		+= $(1)-install
+endef
+
+ifneq ($(SUBDIR),)
+include $(SUBDIR)/Makefile
+$(foreach prog,$(PROGRAMS),$(eval $(call program_template,$(prog))))
+$(foreach lib,$(LIBS),$(eval $(call library_template,$(lib))))
+endif
+
+.DEFAULT_GOAL		:= all
+
+.PHONY:			all clean install
+all:			$(SUBDIRS) $(all_targets)
+clean:			$(SUBDIRS) $(clean_targets)
+install:		all $(SUBDIRS) $(install_targets)
+
+.PHONY: $(SUBDIRS)
+$(SUBDIRS):
+			@/bin/echo -e "  SUBDIR\t$@/"
+			@$(MAKE) -s -f Makefile.rules $(MAKECMDGOALS) SUBDIR="$@/" SUBDIRS=""
