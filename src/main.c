@@ -29,9 +29,10 @@ static struct dect_ops ops = {
 	.raw_ops	= &raw_ops,
 };
 
-#define OPTSTRING "m:d:n:h"
+#define OPTSTRING "c:m:d:n:h"
 
 enum {
+	OPT_CLUSTER	= 'c',
 	OPT_DUMP_MAC	= 'm',
 	OPT_DUMP_DLC	= 'd',
 	OPT_DUMP_NWK	= 'n',
@@ -39,6 +40,7 @@ enum {
 };
 
 static const struct option dectmon_opts[] = {
+	{ .name = "cluster",  .has_arg = true,	.flag = 0, .val = OPT_CLUSTER, },
 	{ .name = "dump-mac", .has_arg = true,  .flag = 0, .val = OPT_DUMP_MAC, },
 	{ .name = "dump-dlc", .has_arg = true,  .flag = 0, .val = OPT_DUMP_DLC, },
 	{ .name = "dump-nwk", .has_arg = true,  .flag = 0, .val = OPT_DUMP_NWK, },
@@ -62,6 +64,7 @@ uint32_t dumpopts = DECTMON_DUMP_NWK;
 
 int main(int argc, char **argv)
 {
+	const char *cluster = NULL;
 	struct dect_fd *dfd;
 	int optidx = 0, c;
 
@@ -71,6 +74,9 @@ int main(int argc, char **argv)
 			break;
 
 		switch (c) {
+		case OPT_CLUSTER:
+			cluster = optarg;
+			break;
 		case OPT_DUMP_MAC:
 			dumpopts = opt_yesno(optarg, dumpopts, DECTMON_DUMP_MAC);
 			break;
@@ -99,7 +105,7 @@ int main(int argc, char **argv)
 	dect_event_ops_init(&ops);
 	dect_dummy_ops_init(&ops);
 
-	dh = dect_open_handle(&ops, NULL);
+	dh = dect_open_handle(&ops, cluster);
 	if (dh == NULL)
 		pexit("dect_init_handle");
 
