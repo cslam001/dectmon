@@ -31,7 +31,7 @@
 #define R2_R4_CLOCKMASK		(1 << 1)
 #define R3_R4_CLOCKMASK		(1 << 2)
 
-static uint32_t clock(uint32_t lfsr, int length, uint32_t mask)
+static uint32_t dsc_clock(uint32_t lfsr, int length, uint32_t mask)
 {
 	return (lfsr >> 1) ^ (-(lfsr & 1) & mask);
 }
@@ -87,10 +87,10 @@ void dect_dsc_keystream(uint64_t iv, const uint8_t *key,
 	/* load IV and KEY */
 	for (i = 0; i < 128; i++) {
 		keybit = (input[i / 8] >> ((i) & 7)) & 1;
-		R1 = clock(R1, R1_LEN, MASK_R1) ^ (keybit << (R1_LEN - 1));
-		R2 = clock(R2, R2_LEN, MASK_R2) ^ (keybit << (R2_LEN - 1));
-		R3 = clock(R3, R3_LEN, MASK_R3) ^ (keybit << (R3_LEN - 1));
-		R4 = clock(R4, R4_LEN, MASK_R4) ^ (keybit << (R4_LEN - 1));
+		R1 = dsc_clock(R1, R1_LEN, MASK_R1) ^ (keybit << (R1_LEN - 1));
+		R2 = dsc_clock(R2, R2_LEN, MASK_R2) ^ (keybit << (R2_LEN - 1));
+		R3 = dsc_clock(R3, R3_LEN, MASK_R3) ^ (keybit << (R3_LEN - 1));
+		R4 = dsc_clock(R4, R4_LEN, MASK_R4) ^ (keybit << (R4_LEN - 1));
 	}
 
 	for (i = 0; i < 40 + (len * 8); i++) {
@@ -101,15 +101,15 @@ void dect_dsc_keystream(uint64_t iv, const uint8_t *key,
 		if (((R2 & R2_CLOCKMASK) != 0) ^
 		    ((R3 & R3_CLOCKMASK) != 0) ^
 		    ((R4 & R1_R4_CLOCKMASK) != 0))
-			N1 = clock(R1, R1_LEN, MASK_R1);
+			N1 = dsc_clock(R1, R1_LEN, MASK_R1);
 		if (((R1 & R1_CLOCKMASK) != 0) ^
 		    ((R3 & R3_CLOCKMASK) != 0) ^
 		    ((R4 & R2_R4_CLOCKMASK) != 0))
-			N2 = clock(R2, R2_LEN, MASK_R2);
+			N2 = dsc_clock(R2, R2_LEN, MASK_R2);
 		if (((R1 & R1_CLOCKMASK) != 0) ^
 		    ((R2 & R2_CLOCKMASK) != 0) ^
 		    ((R4 & R3_R4_CLOCKMASK) != 0))
-			N3 = clock(R3, R3_LEN, MASK_R3);
+			N3 = dsc_clock(R3, R3_LEN, MASK_R3);
 
 		/* Check whether any registers are zero after 11 pre-ciphering
 		 * steps. If a register is all-zero after 11 steps, set input
@@ -126,15 +126,15 @@ void dect_dsc_keystream(uint64_t iv, const uint8_t *key,
 				R4 ^= (1 << (R4_LEN - 1));
 		}
 
-		N1 = clock(N1, R1_LEN, MASK_R1);
-		R1 = clock(N1, R1_LEN, MASK_R1);
-		N2 = clock(N2, R2_LEN, MASK_R2);
-		R2 = clock(N2, R2_LEN, MASK_R2);
-		N3 = clock(N3, R3_LEN, MASK_R3);
-		R3 = clock(N3, R3_LEN, MASK_R3);
-		R4 = clock(R4, R4_LEN, MASK_R4);
-		R4 = clock(R4, R4_LEN, MASK_R4);
-		R4 = clock(R4, R4_LEN, MASK_R4);
+		N1 = dsc_clock(N1, R1_LEN, MASK_R1);
+		R1 = dsc_clock(N1, R1_LEN, MASK_R1);
+		N2 = dsc_clock(N2, R2_LEN, MASK_R2);
+		R2 = dsc_clock(N2, R2_LEN, MASK_R2);
+		N3 = dsc_clock(N3, R3_LEN, MASK_R3);
+		R3 = dsc_clock(N3, R3_LEN, MASK_R3);
+		R4 = dsc_clock(R4, R4_LEN, MASK_R4);
+		R4 = dsc_clock(R4, R4_LEN, MASK_R4);
+		R4 = dsc_clock(R4, R4_LEN, MASK_R4);
 
 		if (i >= 40)
 			output[(i - 40) / 8] |= ((COMB) << (7 - ((i - 40) & 7)));
