@@ -2,6 +2,7 @@
 #define _DECTMON_H
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <list.h>
 #include <dect/auth.h>
 
