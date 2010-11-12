@@ -66,6 +66,31 @@ AC_CHECK_HEADER([event.h],
 EVENT_CFLAGS=$EVENTINC
 AC_SUBST(EVENT_CFLAGS)
 
+CFLAGS=$EVENT_CFLAGS
+if [[ "$EVENT_LDFLAGS" == "-levent" ]]; then
+	AC_MSG_CHECKING([checking whether event.h is compatible with libevent])
+	AC_COMPILE_IFELSE(
+			  [AC_LANG_SOURCE([[
+	#ifdef EV_H_
+	#error
+	#endif
+			  ]])],
+			  [AC_MSG_RESULT([yes])],
+			  [AC_MSG_ERROR([incompatible event.h header for libevent])]
+	)
+else
+	AC_MSG_CHECKING([checking whether event.h is compatible with libev])
+	AC_COMPILE_IFELSE(
+			  [AC_LANG_SOURCE([[
+	#ifndef EV_H_
+	#error
+	#endif
+			  ]])],
+			  [AC_MSG_RESULT([yes])],
+			  [AC_MSG_ERROR([incompatible event.h header for libev])]
+	)
+fi
+
 # Checks for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
 AC_C_CONST
