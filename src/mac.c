@@ -552,6 +552,29 @@ static struct dect_tbc *dect_tbc_init(uint32_t pmid)
 	return tbc;
 }
 
+static void dect_dsc_cipher(struct dect_tbc *tbc, struct dect_msg_buf *mb)
+{
+	unsigned int i;
+	uint8_t *ks;
+
+	if (mb->slot < 12)
+		ks = tbc->ks;
+	else
+		ks = tbc->ks + 45;
+
+	switch (mb->data[0] & DECT_HDR_TA_MASK) {
+	case DECT_TI_CT_PKT_0:
+	case DECT_TI_CT_PKT_1:
+		for (i = 0; i < 5; i++)
+			mb->data[i + 1] ^= ks[i];
+	default:
+		break;
+	}
+
+	for (i = 0; i < DECT_B_FIELD_SIZE; i++)
+		mb->data[i + 8] ^= ks[i + 5];
+}
+
 static void dect_tbc_rcv(struct dect_tbc *tbc, uint8_t slot,
 			 struct dect_msg_buf *mb, struct dect_tail_msg *tm)
 {
@@ -559,6 +582,14 @@ static void dect_tbc_rcv(struct dect_tbc *tbc, uint8_t slot,
 	struct dect_mbc *mbc;
 	unsigned int i;
 	bool cf;
+
+	if (tbc->ciphered) {
+		if (slot < 12)
+			dect_dsc_keystream(dect_dsc_iv(mb->mfn, mb->frame),
+					   tbc->dl.pt->dck,
+					   tbc->ks, sizeof(tbc->ks));
+		dect_dsc_cipher(tbc, mb);
+	}
 
 	mbc = &tbc->mbc[slot < 12 ? DECT_MODE_FP : DECT_MODE_PP];
 	b_id = (mb->data[0] & DECT_HDR_BA_MASK);
@@ -607,13 +638,32 @@ static void dect_tbc_rcv(struct dect_tbc *tbc, uint8_t slot,
 		break;
 	}
 
-	if (tm->type == DECT_TM_TYPE_BCCTRL ||
-	    tm->type == DECT_TM_TYPE_ACCTRL) {
+	switch (tm->type) {
+	case DECT_TM_TYPE_BCCTRL:
+	case DECT_TM_TYPE_ACCTRL:
 		if (tm->cctl.cmd == DECT_CCTRL_RELEASE) {
 			slots[slot].tbc		       = NULL;
 			slots[dect_tdd_slot(slot)].tbc = NULL;
 			free(tbc);
 		}
+		break;
+	case DECT_TM_TYPE_ENCCTRL:
+		switch (tm->encctl.cmd) {
+		case DECT_ENCCTRL_START_REQUEST:
+			printf("\n");
+			break;
+		case DECT_ENCCTRL_START_CONFIRM:
+			printf("ciphering enabled: %s\n", slot < 12 ? "FP->PP" : "PP->FP");
+			break;
+		case DECT_ENCCTRL_START_GRANT:
+			printf("ciphering enabled: %s\n", slot < 12 ? "FP->PP" : "PP->FP");
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
 	}
 }
 

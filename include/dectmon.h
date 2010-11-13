@@ -36,7 +36,7 @@ enum dect_mm_procedures {
 struct dect_pt {
 	struct list_head			list;
 	struct dect_ie_portable_identity	*portable_identity;
-	struct dect_tbc				*tbc;
+	struct dect_dl				*dl;
 
 	uint8_t					uak[DECT_AUTH_KEY_LEN];
 	uint8_t					dck[DECT_CIPHER_KEY_LEN];
@@ -89,6 +89,8 @@ struct dect_tbc {
 	struct dect_mbc				mbc[2];
 	struct dect_dl				dl;
 	bool					ciphered;
+
+	uint8_t					ks[2 * 45];
 };
 
 extern void dect_mac_rcv(struct dect_msg_buf *mb, uint8_t slot);

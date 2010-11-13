@@ -8,7 +8,9 @@
  * published by the Free Software Foundation.
  */
 
+#include <stdlib.h>
 #include <stdio.h>
+#include <limits.h>
 
 #include <dect/libdect.h>
 #include <dect/s_fmt.h>
@@ -72,6 +74,66 @@ static const char * const nwk_msg_types[256] = {
 		ie = NULL;			\
 	} while (0)
 
+static FILE *dect_keyfile_open(const char *mode)
+{
+	char name[PATH_MAX];
+
+	snprintf(name, sizeof(name), "%s/%s", getenv("HOME"), "dectmon.keys");
+	return fopen(name, mode);
+}
+
+static void dect_pt_write_uak(const struct dect_pt *pt)
+{
+	char ipei[DECT_IPEI_STRING_LEN];
+	unsigned int i;
+	FILE *f;
+
+	f = dect_keyfile_open("w");
+	if (f == NULL)
+		return;
+	dect_format_ipei_string(&pt->portable_identity->ipui.pun.n.ipei, ipei);
+
+	fprintf(f, "%s|", ipei);
+	for (i = 0; i < DECT_AUTH_KEY_LEN; i++)
+		fprintf(f, "%02x", pt->uak[i]);
+	fprintf(f, "\n");
+
+	fclose(f);
+}
+
+static void dect_pt_read_uak(struct dect_pt *pt)
+{
+	char ipei[DECT_IPEI_STRING_LEN];
+	uint8_t uak[DECT_AUTH_KEY_LEN];
+	struct dect_ipui ipui;
+	unsigned int i;
+	FILE *f;
+
+	f = dect_keyfile_open("r");
+	if (f == NULL)
+		return;
+
+	if (fscanf(f, "%13s|", ipei) != 1)
+		goto err;
+
+	for (i = 0; i < DECT_AUTH_KEY_LEN; i++) {
+		if (fscanf(f, "%02hhx", &uak[i]) != 1)
+			goto err;
+	}
+
+	memset(&ipui, 0, sizeof(ipui));
+	ipui.put = DECT_IPUI_N;
+	if (!dect_parse_ipei_string(&ipui.pun.n.ipei, ipei))
+		goto err;
+
+	if (dect_ipui_cmp(&ipui, &pt->portable_identity->ipui))
+		goto err;
+
+	memcpy(pt->uak, uak, sizeof(pt->uak));
+err:
+	fclose(f);
+}
+
 static struct dect_pt *dect_pt_lookup(struct dect_ie_portable_identity *portable_identity)
 {
 	struct dect_pt *pt;
@@ -94,6 +156,9 @@ static struct dect_pt *dect_pt_init(struct dect_ie_portable_identity *portable_i
 
 	pt->portable_identity = dect_ie_hold(portable_identity);
 	list_add_tail(&pt->list, &dect_pt_list);
+
+	dect_pt_read_uak(pt);
+	printf("new PT\n");
 
 	return pt;
 }
@@ -123,7 +188,8 @@ static void dect_pt_track_key_allocation(struct dect_pt *pt, uint8_t msgtype,
 		return;
 	case DECT_MM_AUTHENTICATION_REQUEST:
 		if (pt->procedure != DECT_MM_KEY_ALLOCATION ||
-		    pt->last_msg != DECT_MM_KEY_ALLOCATE)
+		    (pt->last_msg != DECT_MM_KEY_ALLOCATE &&
+		     pt->last_msg != DECT_MM_AUTHENTICATION_REQUEST))
 			return;
 
 		if (ie->id == DECT_IE_RES)
@@ -159,11 +225,12 @@ static void dect_pt_track_key_allocation(struct dect_pt *pt, uint8_t msgtype,
 
 		dect_hexdump("DCK", dck, sizeof(dck));
 		memcpy(pt->dck, dck, sizeof(pt->dck));
+
+		dect_pt_write_uak(pt);
 	} else
 		printf("authentication failed\n");
 
 release:
-	dect_ie_release(dh, pt->portable_identity);
 	dect_ie_release(dh, pt->rs);
 	dect_ie_release(dh, pt->rand_f);
 	dect_ie_release(dh, pt->res);
@@ -221,8 +288,10 @@ static void dect_pt_track_auth(struct dect_pt *pt, uint8_t msgtype,
 
 	if (res1.value == pt->res->value) {
 		printf("authentication successful\n");
-		if (pt->auth_type->flags & DECT_AUTH_FLAG_UPC)
+		if (pt->auth_type->flags & DECT_AUTH_FLAG_UPC) {
+			dect_hexdump("DCK", dck, sizeof(dck));
 			memcpy(pt->dck, dck, sizeof(pt->dck));
+		}
 	} else
 		printf("authentication failed\n");
 
@@ -242,7 +311,7 @@ static void dect_pt_track_ciphering(struct dect_pt *pt, uint8_t msgtype,
 	case DECT_MM_CIPHER_REQUEST:
 		if (pt->procedure != DECT_MM_NONE)
 			return;
-		pt->tbc->ciphered = true;
+		pt->dl->tbc->ciphered = true;
 		break;
 	default:
 		return;
@@ -277,6 +346,7 @@ void dect_dl_data_ind(struct dect_dl *dl, struct dect_msg_buf *mb)
 			if (pt == NULL)
 				pt = dect_pt_init((void *)common);
 			dl->pt = pt;
+			pt->dl = dl;
 		}
 
 		if (dl->pt != NULL) {
