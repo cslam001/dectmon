@@ -14,6 +14,7 @@ enum {
 	DECTMON_DUMP_NWK	= 0x4,
 };
 
+extern const char *auth_pin;
 extern uint32_t dumpopts;
 
 struct dect_ops;

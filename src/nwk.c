@@ -158,8 +158,6 @@ static struct dect_pt *dect_pt_init(struct dect_ie_portable_identity *portable_i
 	list_add_tail(&pt->list, &dect_pt_list);
 
 	dect_pt_read_uak(pt);
-	printf("new PT\n");
-
 	return pt;
 }
 
@@ -169,8 +167,8 @@ static void dect_pt_track_key_allocation(struct dect_pt *pt, uint8_t msgtype,
 {
 	uint8_t k[DECT_AUTH_KEY_LEN], ks[DECT_AUTH_KEY_LEN];
 	uint8_t dck[DECT_CIPHER_KEY_LEN];
+	uint8_t ac[DECT_AUTH_CODE_LEN];
 	uint32_t res1;
-	uint8_t ac[4];
 
 	switch (msgtype) {
 	case DECT_MM_KEY_ALLOCATE:
@@ -209,7 +207,7 @@ static void dect_pt_track_key_allocation(struct dect_pt *pt, uint8_t msgtype,
 	    pt->res == NULL)
 		return;
 
-	dect_pin_to_ac("0000", ac, sizeof(ac));
+	dect_pin_to_ac(auth_pin, ac, sizeof(ac));
 	dect_auth_b1(ac, sizeof(ac), k);
 
 	dect_auth_a11(k, pt->rs->value, ks);
