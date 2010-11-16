@@ -43,8 +43,8 @@ static struct dect_lc *dect_lc_init(struct dect_mac_con *mc)
 	struct dect_lc *lc;
 
 	lc = calloc(1, sizeof(*lc));
-	if ((mc->pmid & 0xf0000) != 0xe0000)
-		lc->lsig = mc->pmid;
+	if ((mc->tbc->pmid & 0xf0000) != 0xe0000)
+		lc->lsig = mc->tbc->pmid;
 	return lc;
 }
 
@@ -78,7 +78,8 @@ static const uint8_t channel_sdu_size[] = {
 
 #define roundup(x, y) ((((x) + ((y) - 1)) / (y)) * (y))
 
-static struct dect_msg_buf *dect_lc_reassemble(struct dect_lc *lc,
+static struct dect_msg_buf *dect_lc_reassemble(struct dect_handle *dh,
+					       struct dect_lc *lc,
 					       enum dect_data_channels chan,
 					       struct dect_msg_buf *mb)
 {
@@ -101,9 +102,11 @@ static struct dect_msg_buf *dect_lc_reassemble(struct dect_lc *lc,
 	mb = NULL;
 
 	if (lc->rx_buf->len >= lc->rx_len) {
-		assert(lc->rx_buf->len == lc->rx_len);
 		mb = lc->rx_buf;
 		lc->rx_buf = NULL;
+
+		if (mb->len != lc->rx_len)
+			goto err;
 
 		if (!dect_fa_frame_csum_verify(lc, mb))
 			goto err;
@@ -121,7 +124,8 @@ err:
 	return NULL;
 }
 
-void dect_mac_co_data_ind(struct dect_mac_con *mc, enum dect_data_channels chan,
+void dect_mac_co_data_ind(struct dect_handle *dh, struct dect_mac_con *mc,
+			  enum dect_data_channels chan,
 			  struct dect_msg_buf *mb)
 {
 	struct dect_lc *lc;
@@ -134,9 +138,9 @@ void dect_mac_co_data_ind(struct dect_mac_con *mc, enum dect_data_channels chan,
 		mc->lc = lc;
 	}
 
-	mb = dect_lc_reassemble(mc->lc, chan, mb);
+	mb = dect_lc_reassemble(dh, mc->lc, chan, mb);
 	if (mb != NULL && mb->len > DECT_FA_HDR_SIZE) {
 		dect_mbuf_pull(mb, DECT_FA_HDR_SIZE);
-		dect_dl_data_ind(&mc->tbc->dl, mb);
+		dect_dl_data_ind(dh, &mc->tbc->dl, mb);
 	}
 }

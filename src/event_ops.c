@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2010 Patrick McHardy <kaber@trash.net>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/time.h>
@@ -6,9 +14,15 @@
 #include <dect/libdect.h>
 #include <dectmon.h>
 
+struct io_event {
+	const struct dect_handle	*dh;
+	struct event			ev;
+};
+
 static void event_io_callback(int fd, short mask, void *data)
 {
 	struct dect_fd *dfd = data;
+	struct io_event *ioe = dect_fd_priv(dfd);
 	uint32_t events;
 
 	events = 0;
@@ -17,13 +31,13 @@ static void event_io_callback(int fd, short mask, void *data)
 	if (mask & EV_WRITE)
 		events |= DECT_FD_WRITE;
 
-	dect_fd_process(dh, dfd, events);
+	dect_fd_process((struct dect_handle *)ioe->dh, dfd, events);
 }
 
 static int register_fd(const struct dect_handle *dh, struct dect_fd *dfd,
 		       uint32_t events)
 {
-	struct event *ev = dect_fd_priv(dfd);
+	struct io_event *ioe = dect_fd_priv(dfd);
 	unsigned short mask;
 
 	mask = EV_PERSIST;
@@ -32,45 +46,50 @@ static int register_fd(const struct dect_handle *dh, struct dect_fd *dfd,
 	if (events & DECT_FD_WRITE)
 		mask |= EV_WRITE;
 
-	event_set(ev, dect_fd_num(dfd), mask, event_io_callback, dfd);
-	event_add(ev, NULL);
+	ioe->dh = dh;
+	event_set(&ioe->ev, dect_fd_num(dfd), mask, event_io_callback, dfd);
+	event_add(&ioe->ev, NULL);
 	return 0;
 }
 
 static void unregister_fd(const struct dect_handle *dh, struct dect_fd *dfd)
 {
-	struct event *ev = dect_fd_priv(dfd);
+	struct io_event *ioe = dect_fd_priv(dfd);
 
-	event_del(ev);
+	event_del(&ioe->ev);
 }
 
 static void event_timer_callback(int fd, short mask, void *data)
 {
-	dect_timer_run(dh, data);
+	struct dect_timer *timer = data;
+	struct io_event *ioe = dect_timer_priv(timer);
+
+	dect_timer_run((struct dect_handle *)ioe->dh, data);
 }
 
 static void start_timer(const struct dect_handle *dh,
 			struct dect_timer *timer,
 			const struct timeval *tv)
 {
-	struct event *ev = dect_timer_priv(timer);
+	struct io_event *ioe = dect_timer_priv(timer);
 
-	evtimer_set(ev, event_timer_callback, timer);
-	evtimer_add(ev, (struct timeval *)tv);
+	ioe->dh = dh;
+	evtimer_set(&ioe->ev, event_timer_callback, timer);
+	evtimer_add(&ioe->ev, (struct timeval *)tv);
 }
 
 static void stop_timer(const struct dect_handle *dh, struct dect_timer *timer)
 {
-	struct event *ev = dect_timer_priv(timer);
+	struct io_event *ioe = dect_timer_priv(timer);
 
-	evtimer_del(ev);
+	evtimer_del(&ioe->ev);
 }
 
 static const struct dect_event_ops dect_event_ops = {
-	.fd_priv_size		= sizeof(struct event),
+	.fd_priv_size		= sizeof(struct io_event),
 	.register_fd		= register_fd,
 	.unregister_fd		= unregister_fd,
-	.timer_priv_size	= sizeof(struct event),
+	.timer_priv_size	= sizeof(struct io_event),
 	.start_timer		= start_timer,
 	.stop_timer		= stop_timer
 };

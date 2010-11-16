@@ -4,9 +4,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <list.h>
+#include <dect/libdect.h>
+#include <dect/timer.h>
 #include <dect/auth.h>
-
-extern struct dect_handle *dh;
+#include <phl.h>
 
 enum {
 	DECTMON_DUMP_MAC	= 0x1,
@@ -26,13 +27,22 @@ extern void dect_dummy_ops_init(struct dect_ops *ops);
 
 extern void dect_hexdump(const char *prefix, const uint8_t *buf, size_t size);
 
+struct dect_handle_priv {
+	struct list_head			list;
+	const char				*cluster;
+	struct dect_timer			*lock_timer;
+	struct dect_ari				pari;
+	struct list_head			pt_list;
+
+	struct dect_tbc				*slots[DECT_FRAME_SIZE];
+};
+
 enum dect_mm_procedures {
 	DECT_MM_NONE,
 	DECT_MM_KEY_ALLOCATION,
 	DECT_MM_AUTHENTICATION,
 	DECT_MM_CIPHERING,
 };
-
 
 struct dect_pt {
 	struct list_head			list;
@@ -59,7 +69,8 @@ struct dect_dl {
 };
 
 struct dect_msg_buf;
-extern void dect_dl_data_ind(struct dect_dl *dl, struct dect_msg_buf *mb);
+extern void dect_dl_data_ind(struct dect_handle *dh, struct dect_dl *dl,
+			     struct dect_msg_buf *mb);
 
 struct dect_lc {
 	uint16_t				lsig;
@@ -69,12 +80,12 @@ struct dect_lc {
 
 struct dect_mac_con {
 	struct dect_lc				*lc;
-	uint32_t				pmid;
 	struct dect_tbc				*tbc;
 };
 
 enum dect_data_channels;
-extern void dect_mac_co_data_ind(struct dect_mac_con *mc,
+extern void dect_mac_co_data_ind(struct dect_handle *dh,
+				 struct dect_mac_con *mc,
 				 enum dect_data_channels chan,
 				 struct dect_msg_buf *mb);
 
@@ -87,14 +98,22 @@ struct dect_mbc {
 };
 
 struct dect_tbc {
-	struct dect_mbc				mbc[2];
-	struct dect_dl				dl;
-	bool					ciphered;
+	uint8_t					slot1;
+	uint8_t					slot2;
 
+	uint16_t				fmid;
+	uint32_t				pmid;
+
+	struct dect_timer			*timer;
+	struct dect_mbc				mbc[2];
+
+	bool					ciphered;
 	uint8_t					ks[2 * 45];
+
+	struct dect_dl				dl;
 };
 
-extern void dect_mac_rcv(struct dect_msg_buf *mb, uint8_t slot);
+extern void dect_mac_rcv(struct dect_handle *dh, struct dect_msg_buf *mb);
 
 /* DSC */
 

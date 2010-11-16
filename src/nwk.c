@@ -17,8 +17,6 @@
 #include <dectmon.h>
 #include <nwk.h>
 
-static LIST_HEAD(dect_pt_list);
-
 static const char * const nwk_msg_types[256] = {
 	[DECT_LCE_PAGE_RESPONSE]			= "LCE-PAGE-RESPONSE",
 	[DECT_LCE_PAGE_REJECT]				= "LCE-PAGE-REJECT",
@@ -134,11 +132,13 @@ err:
 	fclose(f);
 }
 
-static struct dect_pt *dect_pt_lookup(struct dect_ie_portable_identity *portable_identity)
+static struct dect_pt *dect_pt_lookup(struct dect_handle *dh,
+				      struct dect_ie_portable_identity *portable_identity)
 {
+	struct dect_handle_priv *priv = dect_handle_priv(dh);
 	struct dect_pt *pt;
 
-	list_for_each_entry(pt, &dect_pt_list, list) {
+	list_for_each_entry(pt, &priv->pt_list, list) {
 		if (!dect_ipui_cmp(&pt->portable_identity->ipui,
 				   &portable_identity->ipui))
 			return pt;
@@ -146,8 +146,10 @@ static struct dect_pt *dect_pt_lookup(struct dect_ie_portable_identity *portable
 	return NULL;
 }
 
-static struct dect_pt *dect_pt_init(struct dect_ie_portable_identity *portable_identity)
+static struct dect_pt *dect_pt_init(struct dect_handle *dh,
+				    struct dect_ie_portable_identity *portable_identity)
 {
+	struct dect_handle_priv *priv = dect_handle_priv(dh);
 	struct dect_pt *pt;
 
 	pt = calloc(1, sizeof(*pt));
@@ -155,13 +157,14 @@ static struct dect_pt *dect_pt_init(struct dect_ie_portable_identity *portable_i
 		return NULL;
 
 	pt->portable_identity = dect_ie_hold(portable_identity);
-	list_add_tail(&pt->list, &dect_pt_list);
+	list_add_tail(&pt->list, &priv->pt_list);
 
 	dect_pt_read_uak(pt);
 	return pt;
 }
 
-static void dect_pt_track_key_allocation(struct dect_pt *pt, uint8_t msgtype,
+static void dect_pt_track_key_allocation(struct dect_handle *dh,
+					 struct dect_pt *pt, uint8_t msgtype,
 					 const struct dect_sfmt_ie *ie,
 					 struct dect_ie_common *common)
 {
@@ -235,7 +238,8 @@ release:
 	pt->procedure = DECT_MM_NONE;
 }
 
-static void dect_pt_track_auth(struct dect_pt *pt, uint8_t msgtype,
+static void dect_pt_track_auth(struct dect_handle *dh,
+			       struct dect_pt *pt, uint8_t msgtype,
 			       const struct dect_sfmt_ie *ie,
 			       struct dect_ie_common *common)
 {
@@ -301,7 +305,8 @@ release:
 	pt->procedure = DECT_MM_NONE;
 }
 
-static void dect_pt_track_ciphering(struct dect_pt *pt, uint8_t msgtype,
+static void dect_pt_track_ciphering(struct dect_handle *dh,
+				    struct dect_pt *pt, uint8_t msgtype,
 				    const struct dect_sfmt_ie *ie,
 				    struct dect_ie_common *common)
 {
@@ -316,7 +321,8 @@ static void dect_pt_track_ciphering(struct dect_pt *pt, uint8_t msgtype,
 	}
 }
 
-void dect_dl_data_ind(struct dect_dl *dl, struct dect_msg_buf *mb)
+void dect_dl_data_ind(struct dect_handle *dh, struct dect_dl *dl,
+		      struct dect_msg_buf *mb)
 {
 	struct dect_pt *pt;
 	struct dect_sfmt_ie ie;
@@ -340,17 +346,17 @@ void dect_dl_data_ind(struct dect_dl *dl, struct dect_msg_buf *mb)
 			return;
 
 		if (ie.id == DECT_IE_PORTABLE_IDENTITY) {
-			pt = dect_pt_lookup((void *)common);
+			pt = dect_pt_lookup(dh, (void *)common);
 			if (pt == NULL)
-				pt = dect_pt_init((void *)common);
+				pt = dect_pt_init(dh, (void *)common);
 			dl->pt = pt;
 			pt->dl = dl;
 		}
 
 		if (dl->pt != NULL) {
-			dect_pt_track_key_allocation(dl->pt, msgtype, &ie, common);
-			dect_pt_track_auth(dl->pt, msgtype, &ie, common);
-			dect_pt_track_ciphering(dl->pt, msgtype, &ie, common);
+			dect_pt_track_key_allocation(dh, dl->pt, msgtype, &ie, common);
+			dect_pt_track_auth(dh, dl->pt, msgtype, &ie, common);
+			dect_pt_track_ciphering(dh, dl->pt, msgtype, &ie, common);
 		}
 
 		__dect_ie_put(dh, common);

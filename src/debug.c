@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2010 Patrick McHardy <kaber@trash.net>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -7,6 +15,7 @@
 #include <unistd.h>
 #include <ctype.h>
 
+#include <dect/libdect.h>
 #include <dectmon.h>
 
 #define BLOCKSIZE	16

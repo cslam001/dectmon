@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2010 Patrick McHardy <kaber@trash.net>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+
 #include <dect/libdect.h>
 #include <dectmon.h>
 
@@ -6,6 +15,7 @@
  */
 
 static void llme_mac_me_info_ind(struct dect_handle *dh,
+				 const struct dect_ari *pari,
 				 const struct dect_fp_capabilities *fpc)
 {
 }

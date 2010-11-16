@@ -493,7 +493,7 @@ static int dect_parse_ct_data(struct dect_tail_msg *tm, uint64_t t, uint8_t seq)
 	return 0;
 }
 
-static int dect_parse_tail_msg(struct dect_tail_msg *tm, uint8_t slot,
+static int dect_parse_tail_msg(struct dect_tail_msg *tm,
 			       const struct dect_msg_buf *mb)
 {
 	uint64_t t;
@@ -514,7 +514,7 @@ static int dect_parse_tail_msg(struct dect_tail_msg *tm, uint8_t slot,
 		return dect_parse_system_information(tm, t);
 	case DECT_TI_PT:
 		/* Paging tail in direction FP->PP, MAC control otherwise */
-		if (slot < 12)
+		if (mb->slot < 12)
 			return dect_parse_paging_msg(tm, t);
 	case DECT_TI_MT:
 		return dect_parse_mac_ctrl(tm, t);
@@ -524,32 +524,77 @@ static int dect_parse_tail_msg(struct dect_tail_msg *tm, uint8_t slot,
 	}
 }
 
-static struct dect_trx_slot {
-	struct dect_tbc		*tbc;
-} slots[DECT_FRAME_SIZE];
+/*
+ * TBC
+ */
 
-static struct dect_tbc *dect_tbc_init(uint32_t pmid)
+#define tbc_log(tbc, fmt, args...) \
+	printf("TBC: PMID: %.5x FMID: %.3x: " fmt, \
+	       (tbc)->pmid, (tbc)->fmid, ## args)
+
+static void dect_tbc_release(struct dect_handle *dh, struct dect_tbc *tbc)
 {
+	struct dect_handle_priv *priv = dect_handle_priv(dh);
+
+	tbc_log(tbc, "release\n");
+	if (dect_timer_running(tbc->timer))
+		dect_timer_stop(dh, tbc->timer);
+	priv->slots[tbc->slot1] = NULL;
+	priv->slots[tbc->slot2] = NULL;
+	free(tbc);
+}
+
+static void dect_tbc_timeout(struct dect_handle *dh, struct dect_timer *timer)
+{
+	struct dect_tbc *tbc = dect_timer_data(timer);
+
+	tbc_log(tbc, "timeout\n");
+	dect_tbc_release(dh, tbc);
+}
+
+static struct dect_tbc *dect_tbc_init(struct dect_handle *dh,
+				      const struct dect_tail_msg *tm,
+				      uint8_t slot)
+{
+	struct dect_handle_priv *priv = dect_handle_priv(dh);
+	uint8_t slot2 = dect_tdd_slot(slot);
 	struct dect_tbc *tbc;
 
 	tbc = calloc(1, sizeof(*tbc));
 	if (tbc == NULL)
-		return NULL;
+		goto err1;
 
-	tbc->dl.tbc		       = tbc;
+	tbc->slot1 = slot;
+	tbc->slot2 = slot2;
+	tbc->fmid  = tm->cctl.fmid;
+	tbc->pmid  = tm->cctl.pmid;
+
+	tbc->timer = dect_timer_alloc(dh);
+	if (tbc->timer == NULL)
+		goto err2;
+	dect_timer_setup(tbc->timer, dect_tbc_timeout, tbc);
+	dect_timer_start(dh, tbc->timer, 5);
 
 	tbc->mbc[DECT_MODE_FP].cs_seq  = 1;
 	tbc->mbc[DECT_MODE_FP].cf_seq  = 1;
-	tbc->mbc[DECT_MODE_FP].mc.pmid = pmid;
 	tbc->mbc[DECT_MODE_FP].mc.tbc  = tbc;
-
 
 	tbc->mbc[DECT_MODE_PP].cs_seq  = 1;
 	tbc->mbc[DECT_MODE_PP].cf_seq  = 1;
-	tbc->mbc[DECT_MODE_PP].mc.pmid = pmid;
 	tbc->mbc[DECT_MODE_PP].mc.tbc  = tbc;
 
+	tbc->dl.tbc		       = tbc;
+
+	priv->slots[slot]  = tbc;
+	priv->slots[slot2] = tbc;
+	tbc_log(tbc, "establish: slot %u/%u\n", slot, slot2);
+
 	return tbc;
+
+err2:
+	free(tbc);
+err1:
+	return NULL;
 }
 
 static void dect_dsc_cipher(struct dect_tbc *tbc, struct dect_msg_buf *mb)
@@ -557,7 +602,7 @@ static void dect_dsc_cipher(struct dect_tbc *tbc, struct dect_msg_buf *mb)
 	unsigned int i;
 	uint8_t *ks;
 
-	if (mb->slot < 12)
+	if (mb->slot < DECT_HALF_FRAME_SIZE)
 		ks = tbc->ks;
 	else
 		ks = tbc->ks + 45;
@@ -575,34 +620,40 @@ static void dect_dsc_cipher(struct dect_tbc *tbc, struct dect_msg_buf *mb)
 		mb->data[i + 8] ^= ks[i + 5];
 }
 
-static void dect_tbc_rcv(struct dect_tbc *tbc, uint8_t slot,
+static void dect_tbc_rcv(struct dect_handle *dh, struct dect_tbc *tbc,
 			 struct dect_msg_buf *mb, struct dect_tail_msg *tm)
 {
 	enum dect_b_identifications b_id;
 	struct dect_mbc *mbc;
 	unsigned int i;
+	uint8_t slot = mb->slot;
 	bool cf;
 
 	if (tbc->ciphered) {
-		if (slot < 12)
+		if (slot < DECT_HALF_FRAME_SIZE)
 			dect_dsc_keystream(dect_dsc_iv(mb->mfn, mb->frame),
 					   tbc->dl.pt->dck,
 					   tbc->ks, sizeof(tbc->ks));
 		dect_dsc_cipher(tbc, mb);
 	}
 
-	mbc = &tbc->mbc[slot < 12 ? DECT_MODE_FP : DECT_MODE_PP];
+	if (tm->type == DECT_TM_TYPE_ID) {
+		dect_timer_stop(dh, tbc->timer);
+		dect_timer_start(dh, tbc->timer, 5);
+	}
+
+	mbc = &tbc->mbc[slot < DECT_HALF_FRAME_SIZE ? DECT_MODE_FP : DECT_MODE_PP];
 	b_id = (mb->data[0] & DECT_HDR_BA_MASK);
 
 	if (tm->type == DECT_TM_TYPE_CT) {
 		if (tm->ctd.seq != mbc->cs_seq) {
-			printf("CS: incorrect seq: %u\n", tm->ctd.seq);
+			tbc_log(tbc, "CS: incorrect seq: %u\n", tm->ctd.seq);
 			return;
 		}
 		mbc->cs_seq = !mbc->cs_seq;
 
 		dect_mbuf_pull(mb, 1);
-		dect_mac_co_data_ind(&mbc->mc, DECT_MC_C_S, mb);
+		dect_mac_co_data_ind(dh, &mbc->mc, DECT_MC_C_S, mb);
 		dect_mbuf_pull(mb, 7);
 	} else
 		dect_mbuf_pull(mb, 8);
@@ -616,21 +667,18 @@ static void dect_tbc_rcv(struct dect_tbc *tbc, uint8_t slot,
 	case DECT_BI_ETYPE_CF_0:
 	case DECT_BI_ETYPE_CF_1:
 		if (((b_id >> DECT_HDR_BA_SHIFT) & 0x1) != mbc->cf_seq) {
-			printf("CF: incorrect seq: %u\n", b_id & 0x1);
+			tbc_log(tbc, "CF: incorrect seq: %u\n", b_id & 0x1);
 			return;
 		}
 		mbc->cf_seq = !mbc->cf_seq;
 
 		for (i = 0; i < mb->len / 10; i++) {
 			if (cf) {
-				mac_print("CF: seq: %u\n", i);
-				dect_mac_co_data_ind(&mbc->mc, DECT_MC_C_F, mb);
-				dect_mbuf_pull(mb, 10);
-				continue;
-			}
-
-			if (!(mb->data[0] & 0x80))
+				tbc_log(tbc, "CF: seq: %u\n", i);
+				dect_mac_co_data_ind(dh, &mbc->mc, DECT_MC_C_F, mb);
+			} else if (!(mb->data[0] & 0x80))
 				cf = true;
+
 			dect_mbuf_pull(mb, 10);
 		}
 		break;
@@ -641,11 +689,8 @@ static void dect_tbc_rcv(struct dect_tbc *tbc, uint8_t slot,
 	switch (tm->type) {
 	case DECT_TM_TYPE_BCCTRL:
 	case DECT_TM_TYPE_ACCTRL:
-		if (tm->cctl.cmd == DECT_CCTRL_RELEASE) {
-			slots[slot].tbc		       = NULL;
-			slots[dect_tdd_slot(slot)].tbc = NULL;
-			free(tbc);
-		}
+		if (tm->cctl.cmd == DECT_CCTRL_RELEASE)
+			dect_tbc_release(dh, tbc);
 		break;
 	case DECT_TM_TYPE_ENCCTRL:
 		switch (tm->encctl.cmd) {
@@ -653,10 +698,9 @@ static void dect_tbc_rcv(struct dect_tbc *tbc, uint8_t slot,
 			printf("\n");
 			break;
 		case DECT_ENCCTRL_START_CONFIRM:
-			printf("ciphering enabled: %s\n", slot < 12 ? "FP->PP" : "PP->FP");
-			break;
 		case DECT_ENCCTRL_START_GRANT:
-			printf("ciphering enabled: %s\n", slot < 12 ? "FP->PP" : "PP->FP");
+			tbc_log(tbc, "ciphering enabled: %s\n",
+			        slot < 12 ? "FP->PP" : "PP->FP");
 			break;
 		default:
 			break;
@@ -667,41 +711,38 @@ static void dect_tbc_rcv(struct dect_tbc *tbc, uint8_t slot,
 	}
 }
 
-void dect_mac_rcv(struct dect_msg_buf *mb, uint8_t slot)
+void dect_mac_rcv(struct dect_handle *dh, struct dect_msg_buf *mb)
 {
-	struct dect_trx_slot *ts = &slots[slot];
+	struct dect_handle_priv *priv = dect_handle_priv(dh);
+	struct dect_tbc *tbc = priv->slots[mb->slot];
 	enum dect_tail_identifications a_id;
 	enum dect_b_identifications b_id;
 	struct dect_tail_msg tm;
-	struct dect_tbc *tbc;
 
 	a_id = (mb->data[0] & DECT_HDR_TA_MASK) >> DECT_HDR_TA_SHIFT;
 	b_id = (mb->data[0] & DECT_HDR_BA_MASK) >> DECT_HDR_BA_SHIFT;
-	mac_print("slot: %02u A: %x B: %x ", slot, a_id, b_id);
+	mac_print("slot: %02u A: %x B: %x ", mb->slot, a_id, b_id);
 
-	dect_parse_tail_msg(&tm, slot, mb);
+	dect_parse_tail_msg(&tm, mb);
 	//dect_hexdump("MAC RCV", mb->data, mb->len);
 
-	if (ts->tbc != NULL)
-		return dect_tbc_rcv(ts->tbc, slot, mb, &tm);
+	if (tbc != NULL)
+		return dect_tbc_rcv(dh, tbc, mb, &tm);
 
-	if (tm.type == DECT_TM_TYPE_BCCTRL ||
-	    tm.type == DECT_TM_TYPE_ACCTRL) {
+	switch (tm.type) {
+	case DECT_TM_TYPE_BCCTRL:
+	case DECT_TM_TYPE_ACCTRL:
 		switch (tm.cctl.cmd) {
 		case DECT_CCTRL_ACCESS_REQ:
 		case DECT_CCTRL_BEARER_HANDOVER_REQ:
 		case DECT_CCTRL_CONNECTION_HANDOVER_REQ:
-			tbc = dect_tbc_init(tm.cctl.pmid);
-			if (tbc == NULL)
-				break;
-
-			ts->tbc              = tbc;
-			slots[slot - 12].tbc = tbc;
-			printf("TBC slot %u\n", slot);
+			dect_tbc_init(dh, &tm, mb->slot);
 			break;
 		default:
-			printf("unknown\n");
 			break;
 		}
+		break;
+	default:
+		break;
 	}
 }
