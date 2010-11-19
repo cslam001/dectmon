@@ -34,7 +34,7 @@ CFLAGS		+= -fstack-protector-all
 CFLAGS		+= -Wall
 CFLAGS		+= -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations
 CFLAGS		+= -Wdeclaration-after-statement -Wsign-compare -Winit-self
-CFLAGS		+= -Wformat-nonliteral -Wformat-security -Wmissing-format-attribute
+CFLAGS		+= -Wformat-nonliteral -Wformat-security # -Wmissing-format-attribute
 CFLAGS		+= -Wcast-align -Wundef -Wbad-function-cast # -Wshadow
 CFLAGS		+= -Waggregate-return -Wunused -Wwrite-strings
 

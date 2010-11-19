@@ -1,1 +1,4 @@
+cmd-parser.[ch]
+cmd-scanner.[ch]
+
 dectmon

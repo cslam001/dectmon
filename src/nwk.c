@@ -200,7 +200,7 @@ static void dect_pt_track_key_allocation(struct dect_handle *dh,
 		break;
 	default:
 		if (pt->procedure == DECT_MM_KEY_ALLOCATION) {
-			printf("unexpected message during key allocation\n");
+			dectmon_log("unexpected message during key allocation\n");
 			goto release;
 		}
 		return;
@@ -217,7 +217,7 @@ static void dect_pt_track_key_allocation(struct dect_handle *dh,
 	dect_auth_a12(ks, pt->rand_f->value, dck, &res1);
 
 	if (res1 == pt->res->value) {
-		printf("authentication ok\n");
+		dectmon_log("authentication ok\n");
 
 		dect_auth_a21(k, pt->rs->value, ks);
 
@@ -229,7 +229,7 @@ static void dect_pt_track_key_allocation(struct dect_handle *dh,
 
 		dect_pt_write_uak(pt);
 	} else
-		printf("authentication failed\n");
+		dectmon_log("authentication failed\n");
 
 release:
 	dect_ie_release(dh, pt->rs);
@@ -273,7 +273,7 @@ static void dect_pt_track_auth(struct dect_handle *dh,
 		break;
 	default:
 		if (pt->procedure == DECT_MM_AUTHENTICATION) {
-			printf("unexpected message during authentication\n");
+			dectmon_log("unexpected message during authentication\n");
 			goto release;
 		}
 		return;
@@ -289,13 +289,13 @@ static void dect_pt_track_auth(struct dect_handle *dh,
 	dect_auth_a12(ks, pt->rand_f->value, dck, &res1.value);
 
 	if (res1.value == pt->res->value) {
-		printf("authentication successful\n");
+		dectmon_log("authentication successful\n");
 		if (pt->auth_type->flags & DECT_AUTH_FLAG_UPC) {
 			dect_hexdump("DCK", dck, sizeof(dck));
 			memcpy(pt->dck, dck, sizeof(pt->dck));
 		}
 	} else
-		printf("authentication failed\n");
+		dectmon_log("authentication failed\n");
 
 release:
 	dect_ie_release(dh, pt->auth_type);
@@ -321,6 +321,40 @@ static void dect_pt_track_ciphering(struct dect_handle *dh,
 	}
 }
 
+static void dect_pt_track_audio(struct dect_handle *dh,
+				struct dect_pt *pt, uint8_t msgtype,
+				const struct dect_sfmt_ie *ie,
+				struct dect_ie_common *common)
+{
+	struct dect_ie_progress_indicator *progress_indicator;
+
+	switch (msgtype) {
+	case DECT_CC_SETUP:
+	case DECT_CC_SETUP_ACK:
+	case DECT_CC_CALL_PROC:
+	case DECT_CC_INFO:
+	case DECT_CC_ALERTING:
+		if (ie->id != DECT_IE_PROGRESS_INDICATOR)
+			break;
+		progress_indicator = (void *)common;
+		if (progress_indicator->progress !=
+		    DECT_PROGRESS_INBAND_INFORMATION_NOW_AVAILABLE)
+			break;
+		/* fall through */
+	case DECT_CC_CONNECT:
+		if (pt->ah == NULL)
+			pt->ah = dect_audio_open();
+		break;
+	case DECT_CC_RELEASE:
+	case DECT_CC_RELEASE_COM:
+		if (pt->ah != NULL) {
+			dect_audio_close(pt->ah);
+			pt->ah = NULL;
+		}
+		break;
+	}
+}
+
 void dect_dl_data_ind(struct dect_handle *dh, struct dect_dl *dl,
 		      struct dect_msg_buf *mb)
 {
@@ -334,9 +368,9 @@ void dect_dl_data_ind(struct dect_handle *dh, struct dect_dl *dl,
 
 	msgtype = mb->data[1];
 
-	printf("\n");
+	dectmon_log("\n");
 	dect_hexdump("NWK", mb->data, mb->len);
-	printf("{%s} message:\n", nwk_msg_types[msgtype]);
+	dectmon_log("{%s} message:\n", nwk_msg_types[msgtype]);
 
 	dect_mbuf_pull(mb, 2);
 	while (mb->len) {
@@ -357,9 +391,31 @@ void dect_dl_data_ind(struct dect_handle *dh, struct dect_dl *dl,
 			dect_pt_track_key_allocation(dh, dl->pt, msgtype, &ie, common);
 			dect_pt_track_auth(dh, dl->pt, msgtype, &ie, common);
 			dect_pt_track_ciphering(dh, dl->pt, msgtype, &ie, common);
+			dect_pt_track_audio(dh, dl->pt, msgtype, &ie, common);
 		}
 
 		__dect_ie_put(dh, common);
 		dect_mbuf_pull(mb, ie.len);
 	}
+}
+
+void dect_dl_u_data_ind(struct dect_handle *dh, struct dect_dl *dl, bool dir,
+			struct dect_msg_buf *mb)
+{
+	struct dect_pt *pt = dl->pt;
+	struct dect_msg_buf *clone;
+
+	if (pt == NULL || pt->ah == NULL)
+		return;
+
+	/* Clone message buffer - audio is processed asynchronously, so we can't
+	 * use the on-stack buffer
+	 */
+	clone = dect_mbuf_alloc(dh);
+	if (clone == NULL)
+		return;
+
+	mb->len = 40;
+	memcpy(dect_mbuf_put(clone, mb->len), mb->data, mb->len);
+	dect_audio_queue(pt->ah, dir, clone);
 }

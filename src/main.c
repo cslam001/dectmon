@@ -14,17 +14,35 @@
 #include <dect/libdect.h>
 #include <dect/raw.h>
 #include <dectmon.h>
+#include <cli.h>
 
 #define DECT_MAX_CLUSTERS	16
 #define DECT_LOCK_TIMEOUT	15
 
 #define cluster_log(priv, fmt, args...) \
-	printf("%s: " fmt, \
-	       ((struct dect_handle_priv *)dect_handle_priv(dh))->cluster, \
-	       ## args)
+	dectmon_log("%s: " fmt, \
+		    ((struct dect_handle_priv *)dect_handle_priv(dh))->cluster, \
+		    ## args)
 
-static LIST_HEAD(dect_handles);
+LIST_HEAD(dect_handles);
 static unsigned int locked;
+
+static FILE *logfile;
+
+void dectmon_log(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	cli_display(fmt, ap);
+	va_end(ap);
+
+	if (logfile) {
+		va_start(ap, fmt);
+		vfprintf(logfile, fmt, ap);
+		va_end(ap);
+	}
+}
 
 static struct dect_handle_priv *dect_handle_lookup(const struct dect_ari *pari)
 {
@@ -53,9 +71,6 @@ static void dect_mac_me_info_ind(struct dect_handle *dh,
 
 	if (pari != NULL) {
 		if (dect_handle_lookup(pari) == NULL) {
-			cluster_log(dh, "MAC_ME_INFO-ind: EMC: %.4x FPN: %.5x\n",
-				    pari->emc, pari->fpn);
-
 			dect_llme_mac_me_info_res(dh, pari);
 			priv->pari = *pari;
 			dect_timer_start(dh, priv->lock_timer, DECT_LOCK_TIMEOUT);
@@ -67,6 +82,7 @@ static void dect_mac_me_info_ind(struct dect_handle *dh,
 				    locked, priv->pari.emc, priv->pari.fpn);
 
 			dect_timer_stop(dh, priv->lock_timer);
+			priv->locked = true;
 		}
 	} else {
 		locked--;
@@ -74,6 +90,7 @@ static void dect_mac_me_info_ind(struct dect_handle *dh,
 			    locked, priv->pari.emc, priv->pari.fpn);
 
 		memset(&priv->pari, 0, sizeof(priv->pari));
+		priv->locked = false;
 		dect_llme_scan_req(dh);
 	}
 }
@@ -98,6 +115,19 @@ static struct dect_ops ops = {
 	.raw_ops		= &raw_ops,
 };
 
+uint32_t debug_mask = ~0;
+
+static void dect_debug(enum dect_debug_subsys subsys, const char *fmt,
+		       va_list ap)
+{
+	char buf[1024];
+
+	if (debug_mask & (1 << subsys)) {
+		vsnprintf(buf, sizeof(buf), fmt, ap);
+		dectmon_log("%s", buf);
+	}
+}
+
 #define OPTSTRING "c:sm:d:n:p:h"
 
 enum {
@@ -107,6 +137,7 @@ enum {
 	OPT_DUMP_DLC	= 'd',
 	OPT_DUMP_NWK	= 'n',
 	OPT_AUTH_PIN	= 'p',
+	OPT_LOGFILE	= 'l',
 	OPT_HELP	= 'h',
 };
 
@@ -117,6 +148,7 @@ static const struct option dectmon_opts[] = {
 	{ .name = "dump-dlc", .has_arg = true,  .flag = 0, .val = OPT_DUMP_DLC, },
 	{ .name = "dump-nwk", .has_arg = true,  .flag = 0, .val = OPT_DUMP_NWK, },
 	{ .name = "auth-pin", .has_arg = true,  .flag = 0, .val = OPT_AUTH_PIN, },
+	{ .name = "logfile",  .has_arg = true,  .flag = 0, .val = OPT_LOGFILE, },
 	{ .name = "help",     .has_arg = false, .flag = 0, .val = OPT_HELP, },
 	{ },
 };
@@ -138,6 +170,7 @@ static void dectmon_help(const char *progname)
 	       "  -d/--dump-dlc=yes/no		Dump DLC layer messages (default: no)\n"
 	       "  -n/--dump-nwk=yes/no		Dump NWK layer messages (default: yes)\n"
 	       "  -p/--auth-pin=PIN		Authentication PIN for Key Allocation\n"
+	       "  -l/--logfile=NAME		Log output to file\n"
 	       "  -h/--help			Show this help text\n"
 	       "\n",
 	       progname);
@@ -170,6 +203,7 @@ static struct dect_handle *dectmon_open_handle(struct dect_ops *ops,
 
 	priv = dect_handle_priv(dh);
 	priv->cluster = cluster;
+	priv->dh      = dh;
 
 	priv->lock_timer = dect_timer_alloc(dh);
 	if (priv->lock_timer == NULL)
@@ -215,6 +249,11 @@ int main(int argc, char **argv)
 		case OPT_AUTH_PIN:
 			auth_pin = optarg;
 			break;
+		case OPT_LOGFILE:
+			logfile = fopen(optarg, "a");
+			if (logfile == NULL)
+				pexit("fopen");
+			break;
 		case OPT_HELP:
 			dectmon_help(argv[0]);
 			exit(0);
@@ -226,6 +265,10 @@ int main(int argc, char **argv)
 
 	dect_event_ops_init(&ops);
 	dect_dummy_ops_init(&ops);
+	dect_audio_init();
+
+	cli_init(stdin);
+	dect_set_debug_hook(dect_debug);
 
 	if (ncluster == 0)
 		ncluster = 1;
@@ -242,5 +285,6 @@ int main(int argc, char **argv)
 	}
 
 	dect_event_loop();
+	cli_exit();
 	return 0;
 }

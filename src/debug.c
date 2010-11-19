@@ -36,7 +36,7 @@ void dect_hexdump(const char *prefix, const uint8_t *buf, size_t size)
 
 		if (off == BLOCKSIZE - 1 || i == size - 1) {
 			abuf[off + 1] = '\0';
-			printf("%s: %-*s    |%s|\n", prefix, 64 - plen, hbuf, abuf);
+			dectmon_log("%s: %-*s    |%s|\n", prefix, 64 - plen, hbuf, abuf);
 		}
 	}
 }

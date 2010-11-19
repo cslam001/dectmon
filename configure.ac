@@ -25,6 +25,8 @@ AC_PROG_MKDIR_P
 AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_SED
+AC_PROG_LEX
+AC_PROG_YACC
 
 AC_ARG_ENABLE([doc],
 	      AS_HELP_STRING([--enable-doc], [build documentation [no]]),
@@ -46,6 +48,12 @@ AC_CHECK_LIB(ev, event_init,
 			   [AC_ERROR([libev or libevent not found])])])
 EVENT_LDFLAGS=$EVENTLIB
 AC_SUBST(EVENT_LDFLAGS)
+
+AC_CHECK_LIB([readline], [rl_callback_handler_install], ,
+	     AC_MSG_ERROR([No suitable version of libreadline found]))
+
+AC_CHECK_LIB([SDL], [SDL_Init], ,
+	     AC_MSG_ERROR([No suitable version of libSDL found]))
 
 # Checks for header files.
 AC_HEADER_STDC

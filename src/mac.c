@@ -22,7 +22,7 @@
 #define mac_print(fmt, args...)				\
 	do {						\
 		if (dumpopts & DECTMON_DUMP_MAC)	\
-			printf(fmt, ## args);		\
+			dectmon_log(fmt, ## args);	\
 	} while (0)
 
 /*
@@ -529,8 +529,8 @@ static int dect_parse_tail_msg(struct dect_tail_msg *tm,
  */
 
 #define tbc_log(tbc, fmt, args...) \
-	printf("TBC: PMID: %.5x FMID: %.3x: " fmt, \
-	       (tbc)->pmid, (tbc)->fmid, ## args)
+	dectmon_log("TBC: PMID: %.5x FMID: %.3x: " fmt, \
+		    (tbc)->pmid, (tbc)->fmid, ## args)
 
 static void dect_tbc_release(struct dect_handle *dh, struct dect_tbc *tbc)
 {
@@ -682,6 +682,9 @@ static void dect_tbc_rcv(struct dect_handle *dh, struct dect_tbc *tbc,
 			dect_mbuf_pull(mb, 10);
 		}
 		break;
+	case DECT_BI_UTYPE_0:
+		dect_dl_u_data_ind(dh, &tbc->dl, slot < 12, mb);
+		break;
 	default:
 		break;
 	}
@@ -695,7 +698,6 @@ static void dect_tbc_rcv(struct dect_handle *dh, struct dect_tbc *tbc,
 	case DECT_TM_TYPE_ENCCTRL:
 		switch (tm->encctl.cmd) {
 		case DECT_ENCCTRL_START_REQUEST:
-			printf("\n");
 			break;
 		case DECT_ENCCTRL_START_CONFIRM:
 		case DECT_ENCCTRL_START_GRANT:

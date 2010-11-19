@@ -19,7 +19,7 @@
 #define dlc_print(fmt, args...)				\
 	do {						\
 		if (dumpopts & DECTMON_DUMP_DLC)	\
-			printf(fmt, ## args);		\
+			dectmon_log(fmt, ## args);	\
 	} while (0)
 
 #if 1

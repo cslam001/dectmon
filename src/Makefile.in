@@ -10,4 +10,12 @@ dectmon-obj	+= dsc.o
 dectmon-obj	+= mac.o
 dectmon-obj	+= dlc.o
 dectmon-obj	+= nwk.o
+dectmon-obj	+= cmd-scanner.o
+dectmon-obj	+= cmd-parser.o
+dectmon-obj	+= cli.o
+dectmon-obj	+= audio.o
 dectmon-obj	+= main.o
+
+dectmon-obj	+= ccitt-adpcm/g711.o
+dectmon-obj	+= ccitt-adpcm/g72x.o
+dectmon-obj	+= ccitt-adpcm/g721.o
