@@ -26,6 +26,7 @@
 
 LIST_HEAD(dect_handles);
 static unsigned int locked;
+static bool scan;
 
 static FILE *logfile;
 
@@ -68,6 +69,9 @@ static void dect_mac_me_info_ind(struct dect_handle *dh,
 				 const struct dect_fp_capabilities *fpc)
 {
 	struct dect_handle_priv *priv = dect_handle_priv(dh);
+
+	if (!scan)
+		return;
 
 	if (pari != NULL) {
 		if (dect_handle_lookup(pari) == NULL) {
@@ -222,7 +226,6 @@ int main(int argc, char **argv)
 	unsigned int ncluster = 0, i;
 	struct dect_handle *dh;
 	struct dect_fd *dfd;
-	bool scan = false;
 	int optidx = 0, c;
 
 	for (;;) {
