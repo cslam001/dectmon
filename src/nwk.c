@@ -82,7 +82,7 @@ static FILE *dect_keyfile_open(const char *mode)
 
 static void dect_pt_write_uak(const struct dect_pt *pt)
 {
-	char ipei[DECT_IPEI_STRING_LEN];
+	char ipei[DECT_IPEI_STRING_LEN + 1];
 	unsigned int i;
 	FILE *f;
 
@@ -101,7 +101,7 @@ static void dect_pt_write_uak(const struct dect_pt *pt)
 
 static void dect_pt_read_uak(struct dect_pt *pt)
 {
-	char ipei[DECT_IPEI_STRING_LEN];
+	char ipei[DECT_IPEI_STRING_LEN + 1];
 	uint8_t uak[DECT_AUTH_KEY_LEN];
 	struct dect_ipui ipui;
 	unsigned int i;

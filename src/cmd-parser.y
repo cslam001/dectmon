@@ -192,7 +192,7 @@ cluster_stmt		:	CLUSTER		SHOW
 
 portable_stmt		:	PORTABLE	SHOW
 			{
-				char ipei[DECT_IPEI_STRING_LEN];
+				char ipei[DECT_IPEI_STRING_LEN + 1];
 				struct dect_handle_priv *priv;
 				struct dect_pt *pt;
 
