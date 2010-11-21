@@ -144,7 +144,7 @@ static void dect_debug(enum dect_debug_subsys subsys, const char *fmt,
 	}
 }
 
-#define OPTSTRING "c:sm:d:n:p:d:h"
+#define OPTSTRING "c:sm:d:n:p:l:d:h"
 
 enum {
 	OPT_CLUSTER	= 'c',
