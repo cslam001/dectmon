@@ -149,4 +149,14 @@ extern void dect_audio_close(struct dect_audio_handle *ah);
 extern void dect_audio_queue(struct dect_audio_handle *ah, unsigned int queue,
 			     struct dect_msg_buf *mb);
 
+/* Raw dump */
+
+struct dect_raw_frame_hdr {
+	uint8_t		len;
+	uint8_t		slot;
+	uint8_t		frame;
+	uint8_t		pad;
+	uint32_t	mfn;
+};
+
 #endif /* _DECTMON_H */

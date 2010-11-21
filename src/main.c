@@ -29,6 +29,7 @@ static unsigned int locked;
 static bool scan;
 
 static FILE *logfile;
+static FILE *dumpfile;
 
 void dectmon_log(const char *fmt, ...)
 {
@@ -106,6 +107,17 @@ static struct dect_llme_ops_ llme_ops = {
 static void dect_raw_rcv(struct dect_handle *dh, struct dect_fd *dfd,
 			 struct dect_msg_buf *mb)
 {
+	struct dect_raw_frame_hdr f;
+
+	if (dumpfile != NULL) {
+		f.slot	 = mb->slot;
+		f.frame	 = mb->frame;
+		f.mfn 	 = mb->mfn;
+		f.len	 = mb->len;
+
+		fwrite(&f, sizeof(f), 1, dumpfile);
+		fwrite(mb->data, mb->len, 1, dumpfile);
+	}
 	dect_mac_rcv(dh, mb);
 }
 
@@ -132,7 +144,7 @@ static void dect_debug(enum dect_debug_subsys subsys, const char *fmt,
 	}
 }
 
-#define OPTSTRING "c:sm:d:n:p:h"
+#define OPTSTRING "c:sm:d:n:p:d:h"
 
 enum {
 	OPT_CLUSTER	= 'c',
@@ -142,6 +154,7 @@ enum {
 	OPT_DUMP_NWK	= 'n',
 	OPT_AUTH_PIN	= 'p',
 	OPT_LOGFILE	= 'l',
+	OPT_DUMPFILE	= 'w',
 	OPT_HELP	= 'h',
 };
 
@@ -153,6 +166,7 @@ static const struct option dectmon_opts[] = {
 	{ .name = "dump-nwk", .has_arg = true,  .flag = 0, .val = OPT_DUMP_NWK, },
 	{ .name = "auth-pin", .has_arg = true,  .flag = 0, .val = OPT_AUTH_PIN, },
 	{ .name = "logfile",  .has_arg = true,  .flag = 0, .val = OPT_LOGFILE, },
+	{ .name = "dumpfile", .has_arg = true,	.flag = 0, .val = OPT_DUMPFILE, },
 	{ .name = "help",     .has_arg = false, .flag = 0, .val = OPT_HELP, },
 	{ },
 };
@@ -175,6 +189,7 @@ static void dectmon_help(const char *progname)
 	       "  -n/--dump-nwk=yes/no		Dump NWK layer messages (default: yes)\n"
 	       "  -p/--auth-pin=PIN		Authentication PIN for Key Allocation\n"
 	       "  -l/--logfile=NAME		Log output to file\n"
+	       "  -d/--dumpfile=NAME		Dump raw frames to file\n"
 	       "  -h/--help			Show this help text\n"
 	       "\n",
 	       progname);
@@ -255,6 +270,11 @@ int main(int argc, char **argv)
 		case OPT_LOGFILE:
 			logfile = fopen(optarg, "a");
 			if (logfile == NULL)
+				pexit("fopen");
+			break;
+		case OPT_DUMPFILE:
+			dumpfile = fopen(optarg, "w");
+			if (dumpfile == NULL)
 				pexit("fopen");
 			break;
 		case OPT_HELP:
