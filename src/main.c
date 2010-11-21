@@ -14,7 +14,10 @@
 #include <dect/libdect.h>
 #include <dect/raw.h>
 #include <dectmon.h>
+#include <audio.h>
+#include <raw.h>
 #include <cli.h>
+#include <ops.h>
 
 #define DECT_MAX_CLUSTERS	16
 #define DECT_LOCK_TIMEOUT	15

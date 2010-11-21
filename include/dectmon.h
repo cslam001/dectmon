@@ -20,13 +20,6 @@ extern const char *auth_pin;
 extern uint32_t dumpopts;
 extern uint32_t debug_mask;
 
-struct dect_ops;
-extern int dect_event_ops_init(struct dect_ops *ops);
-extern void dect_event_loop_stop(void);
-extern void dect_event_loop(void);
-extern void dect_event_ops_cleanup(void);
-extern void dect_dummy_ops_init(struct dect_ops *ops);
-
 extern void dectmon_log(const char *fmt, ...);
 extern void dect_hexdump(const char *prefix, const uint8_t *buf, size_t size);
 
@@ -127,36 +120,5 @@ struct dect_tbc {
 };
 
 extern void dect_mac_rcv(struct dect_handle *dh, struct dect_msg_buf *mb);
-
-/* DSC */
-
-extern void dect_dsc_keystream(uint64_t iv, const uint8_t *key,
-			       uint8_t *output, unsigned int len);
-extern uint64_t dect_dsc_iv(uint32_t mfn, uint8_t framenum);
-
-/* Audio */
-
-#include "../src/ccitt-adpcm/g72x.h"
-
-struct dect_audio_handle {
-	struct g72x_state	codec[2];
-	struct dect_msg_buf	*queue[2];
-};
-
-extern int dect_audio_init(void);
-extern struct dect_audio_handle *dect_audio_open(void);
-extern void dect_audio_close(struct dect_audio_handle *ah);
-extern void dect_audio_queue(struct dect_audio_handle *ah, unsigned int queue,
-			     struct dect_msg_buf *mb);
-
-/* Raw dump */
-
-struct dect_raw_frame_hdr {
-	uint8_t		len;
-	uint8_t		slot;
-	uint8_t		frame;
-	uint8_t		pad;
-	uint32_t	mfn;
-};
 
 #endif /* _DECTMON_H */

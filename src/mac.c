@@ -16,6 +16,7 @@
 #include <dectmon.h>
 #include <phl.h>
 #include <mac.h>
+#include <dsc.h>
 
 #define BITS_PER_BYTE	8
 

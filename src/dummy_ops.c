@@ -9,6 +9,7 @@
 
 #include <dect/libdect.h>
 #include <dectmon.h>
+#include <ops.h>
 
 /*
  * LLME Ops

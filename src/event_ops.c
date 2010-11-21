@@ -13,6 +13,7 @@
 
 #include <dect/libdect.h>
 #include <dectmon.h>
+#include <ops.h>
 
 struct io_event {
 	const struct dect_handle	*dh;

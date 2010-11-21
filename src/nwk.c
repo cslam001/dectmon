@@ -15,6 +15,7 @@
 #include <dect/libdect.h>
 #include <dect/s_fmt.h>
 #include <dectmon.h>
+#include <audio.h>
 #include <nwk.h>
 
 static const char * const nwk_msg_types[256] = {

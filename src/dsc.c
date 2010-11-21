@@ -12,6 +12,7 @@
 #include <linux/byteorder/little_endian.h>
 
 #include <dectmon.h>
+#include <dsc.h>
 
 #define R1_LEN			17
 #define R2_LEN			19

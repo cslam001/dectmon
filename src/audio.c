@@ -2,6 +2,7 @@
 #include <SDL/SDL_audio.h>
 
 #include <dectmon.h>
+#include <audio.h>
 #include <utils.h>
 
 void dect_audio_queue(struct dect_audio_handle *ah, unsigned int queue,
