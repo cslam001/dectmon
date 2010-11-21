@@ -59,6 +59,16 @@ static struct dect_handle_priv *dect_handle_lookup(const struct dect_ari *pari)
 	return NULL;
 }
 
+struct dect_handle_priv *dect_handle_get_by_name(const char *name)
+{
+	struct dect_handle_priv *priv;
+
+	list_for_each_entry(priv, &dect_handles, list)
+		if (!strcmp(name, priv->cluster))
+			return priv;
+	return NULL;
+}
+
 static void dect_lock_timer(struct dect_handle *dh, struct dect_timer *timer)
 {
 	struct dect_handle_priv *priv = dect_handle_priv(dh);

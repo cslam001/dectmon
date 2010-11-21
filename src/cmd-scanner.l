@@ -100,10 +100,15 @@ slash		\/
 "MNCC_SETUP-req"	{ return MNCC_SETUP_REQ; }
 "MNCC_INFO-req"		{ return MNCC_INFO_REQ; }
 
+"MNSS_FACILITY-req"	{ return MNSS_FACILITY_REQ; }
+
+"portable-identity"	{ return PORTABLE_IDENTITY; }
 "sending-complete"	{ return SENDING_COMPLETE; }
 "keypad"		{ return KEYPAD; }
 "basic-service"		{ return BASIC_SERVICE; }
 "escape-to-proprietary"	{ return ESCAPE_TO_PROPRIETARY; }
+
+"IPEI"			{ return IPEI; }
 
 "info"			{ return INFO; }
 "service"		{ return SERVICE; }
@@ -133,6 +138,11 @@ slash		\/
 
 {string}		{
 				yylval->string = strdup(yytext);
+				return STRING;
+			}
+
+{quotedstring}		{
+				yylval->string = strndup(yytext + 1, yyleng - 2);
 				return STRING;
 			}
 

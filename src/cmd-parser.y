@@ -81,9 +81,11 @@ static void location_update(struct location *loc, struct location *rhs, int n)
 %union {
 	uint64_t			val;
 	const char			*string;
+	struct dect_handle		*dh;
 	struct dect_ie_common		*ie;
 	struct dect_mncc_setup_param	*mncc_setup_param;
 	struct dect_mncc_info_param	*mncc_info_param;
+	struct dect_mnss_param		*mnss_param;
 }
 
 %token TOKEN_EOF 0		"end of file"
@@ -114,10 +116,15 @@ static void location_update(struct location *loc, struct location *rhs, int n)
 %token MNCC_SETUP_REQ		"MNCC_SETUP-req"
 %token MNCC_INFO_REQ		"MNCC_INFO-req"
 
+%token MNSS_FACILITY_REQ	"MNSS_FACILITY-req"
+
+%token PORTABLE_IDENTITY	"portable-identity"
 %token SENDING_COMPLETE		"sending-complete"
 %token KEYPAD			"keypad"
 %token BASIC_SERVICE		"basic-service"
 %token ESCAPE_TO_PROPRIETARY	"escape-to-proprietary"
+
+%token IPEI			"IPEI"
 
 %token INFO			"info"
 %token SERVICE			"service"
@@ -147,11 +154,19 @@ static void location_update(struct location *loc, struct location *rhs, int n)
 
 %type <val>			debug_subsys on_off
 
+%type <dh>			cluster
+
 %type <mncc_setup_param>	mncc_setup_param_alloc
 %type <mncc_setup_param>	mncc_setup_params mncc_setup_param
 
 %type <mncc_info_param>		mncc_info_param_alloc
 %type <mncc_info_param>		mncc_info_params mncc_info_param
+
+%type <mnss_param>		mnss_param_alloc
+%type <mnss_param>		mnss_params mnss_param
+
+%type <ie>			portable_identity_ie portable_identity_ie_alloc
+%type <ie>			portable_identity_ie_params portable_identity_ie_param
 
 %type <ie>			keypad_ie keypad_ie_alloc
 
@@ -175,6 +190,7 @@ line			:	cluster_stmt
 			|	tbc_stmt
 			|	debug_stmt
 			|	cc_primitive
+			|	ss_primitive
 			;
 
 cluster_stmt		:	CLUSTER		SHOW
@@ -250,6 +266,23 @@ on_off			:	ON	{ $$ = true; }
 			|	OFF	{ $$ = false; }
 			;
 
+cluster			:	STRING
+			{
+				struct dect_handle_priv *priv;
+
+				priv = dect_handle_get_by_name($1);
+				if (priv == NULL) {
+					char buf[256];
+
+					snprintf(buf, sizeof(buf), "cluster '%s' does not exist\n", $1);
+					yyerror(&@1, scanner, state, buf);
+					YYABORT;
+				} else
+					$$ = priv->dh;
+
+			}
+			;
+
 cc_primitive		:	mncc_setup_req
 			|	mncc_info_req
 			;
@@ -258,19 +291,19 @@ cc_primitive		:	mncc_setup_req
  * MNCC_SETUP-req
  */
 
-mncc_setup_req		:	MNCC_SETUP_REQ	mncc_setup_param_alloc '(' mncc_setup_params ')'
+mncc_setup_req		:	MNCC_SETUP_REQ	'(' cluster mncc_setup_param_alloc ',' mncc_setup_params ')'
 			{
-				struct dect_handle *dh = parser_get_handle();
+				struct dect_handle *dh = $3;
 				struct dect_ipui ipui = {};
 				struct dect_call *call;
 
 				call = dect_call_alloc(dh);
-				dect_mncc_setup_req(dh, call, &ipui, $2);
+				dect_mncc_setup_req(dh, call, &ipui, $4);
 			}
 
 mncc_setup_param_alloc	:
 			{
-				$$ = dect_ie_collection_alloc(parser_get_handle(),
+				$$ = dect_ie_collection_alloc($<dh>0,
 							      sizeof(struct dect_mncc_setup_param));
 			}
 			;
@@ -282,7 +315,11 @@ mncc_setup_params	:	mncc_setup_param
 			|	mncc_setup_params ',' mncc_setup_param
 			;
 
-mncc_setup_param	:	keypad_ie
+mncc_setup_param	:	portable_identity_ie
+			{
+				//$<mncc_setup_param>-1->portable_identity = (struct dect_ie_portable_identity *)$1;
+			}
+			|	 keypad_ie
 			{
 				$<mncc_setup_param>-1->keypad = (struct dect_ie_keypad *)$1;
 			}
@@ -304,14 +341,14 @@ mncc_setup_param	:	keypad_ie
  * MNCC_INFO-req
  */
 
-mncc_info_req		:	MNCC_INFO_REQ	mncc_info_param_alloc '(' mncc_info_params ')'
+mncc_info_req		:	MNCC_INFO_REQ	'(' cluster mncc_info_param_alloc ',' mncc_info_params ')'
 			{
 			}
 			;
 
 mncc_info_param_alloc	:
 			{
-				$$ = dect_ie_collection_alloc(parser_get_handle(),
+				$$ = dect_ie_collection_alloc($<dh>0,
 							      sizeof(struct dect_mncc_info_param));
 			}
 			;
@@ -334,6 +371,73 @@ mncc_info_param		:	keypad_ie
 			|	etp_ie
 			{
 				$<mncc_info_param>-1->escape_to_proprietary = (struct dect_ie_escape_to_proprietary *)$1;
+			}
+			;
+
+ss_primitive		:	mnss_facility_req
+			;
+
+/*
+ * MNSS_FACILITY-req
+ */
+
+mnss_facility_req	:	MNSS_FACILITY_REQ	'(' cluster mnss_param_alloc ',' mnss_params ')'
+			{
+				struct dect_handle *dh = $3;
+				struct dect_ipui ipui = {};
+				struct dect_ss_endpoint *sse;
+
+				sse = dect_ss_endpoint_alloc(dh, &ipui);
+				dect_mnss_facility_req(dh, sse, $4);
+			}
+			;
+
+mnss_param_alloc	:
+			{
+				$$ = dect_ie_collection_alloc($<dh>0,
+							      sizeof(struct dect_mnss_param));
+			}
+			;
+
+mnss_params		:	mnss_param
+			|	mnss_params ',' mnss_param
+			;
+
+mnss_param		:	keypad_ie
+			{
+				$<mnss_param>-1->keypad = (struct dect_ie_keypad *)$1;
+			}
+			|	etp_ie
+			{
+				$<mnss_param>-1->escape_to_proprietary = (struct dect_ie_escape_to_proprietary *)$1;
+			}
+			;
+
+/*
+ * Portable Identity IE
+ */
+
+portable_identity_ie	:	PORTABLE_IDENTITY	portable_identity_ie_alloc '(' portable_identity_ie_params ')'
+			{
+				$$ = $2;
+			}
+			;
+
+portable_identity_ie_alloc:
+			{
+				$$ = dect_ie_alloc(parser_get_handle(), sizeof(struct dect_ie_portable_identity));
+			}
+			;
+
+portable_identity_ie_params:	portable_identity_ie_param
+			|	portable_identity_ie_params ',' portable_identity_ie_param
+			;
+
+portable_identity_ie_param:	IPEI	'='	STRING
+			{
+				struct dect_ie_portable_identity *ie = dect_ie_container(ie, $<ie>-1);
+
+				dect_parse_ipei_string(&ie->ipui.pun.n.ipei, $3);
 			}
 			;
 

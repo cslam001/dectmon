@@ -38,6 +38,8 @@ struct dect_handle_priv {
 	struct dect_tbc				*slots[DECT_FRAME_SIZE];
 };
 
+extern struct dect_handle_priv *dect_handle_get_by_name(const char *name);
+
 enum dect_mm_procedures {
 	DECT_MM_NONE,
 	DECT_MM_KEY_ALLOCATION,
