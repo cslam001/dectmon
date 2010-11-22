@@ -34,6 +34,7 @@ struct dect_handle_priv {
 	bool					locked;
 	struct dect_ari				pari;
 
+	struct dect_fd				*rawsk;
 	struct list_head			pt_list;
 	struct dect_tbc				*slots[DECT_FRAME_SIZE];
 };
@@ -96,6 +97,8 @@ extern void dect_mac_co_data_ind(struct dect_handle *dh,
 				 struct dect_mac_con *mc,
 				 enum dect_data_channels chan,
 				 struct dect_msg_buf *mb);
+
+extern void dect_mac_dis_ind(struct dect_handle *dh, struct dect_mac_con *mc);
 
 /* MAC */
 

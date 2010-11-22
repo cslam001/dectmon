@@ -376,9 +376,9 @@ void dect_dl_data_ind(struct dect_handle *dh, struct dect_dl *dl,
 	dect_mbuf_pull(mb, 2);
 	while (mb->len) {
 		if (dect_parse_sfmt_ie_header(&ie, mb) < 0)
-			return;
+			goto out;
 		if (dect_parse_sfmt_ie(dh, ie.id, &common, &ie) < 0)
-			return;
+			goto out;
 
 		if (ie.id == DECT_IE_PORTABLE_IDENTITY) {
 			pt = dect_pt_lookup(dh, (void *)common);
@@ -398,6 +398,8 @@ void dect_dl_data_ind(struct dect_handle *dh, struct dect_dl *dl,
 		__dect_ie_put(dh, common);
 		dect_mbuf_pull(mb, ie.len);
 	}
+out:
+	dect_mbuf_free(dh, mb);
 }
 
 void dect_dl_u_data_ind(struct dect_handle *dh, struct dect_dl *dl, bool dir,

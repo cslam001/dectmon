@@ -538,8 +538,14 @@ static void dect_tbc_release(struct dect_handle *dh, struct dect_tbc *tbc)
 	struct dect_handle_priv *priv = dect_handle_priv(dh);
 
 	tbc_log(tbc, "release\n");
+
+	dect_mac_dis_ind(dh, &tbc->mbc[DECT_MODE_FP].mc);
+	dect_mac_dis_ind(dh, &tbc->mbc[DECT_MODE_PP].mc);
+
 	if (dect_timer_running(tbc->timer))
 		dect_timer_stop(dh, tbc->timer);
+	dect_timer_free(dh, tbc->timer);
+
 	priv->slots[tbc->slot1] = NULL;
 	priv->slots[tbc->slot2] = NULL;
 	free(tbc);

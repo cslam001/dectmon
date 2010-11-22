@@ -80,7 +80,7 @@ static void location_update(struct location *loc, struct location *rhs, int n)
 
 %union {
 	uint64_t			val;
-	const char			*string;
+	char				*string;
 	struct dect_handle		*dh;
 	struct dect_ie_common		*ie;
 	struct dect_mncc_setup_param	*mncc_setup_param;
@@ -271,6 +271,8 @@ cluster			:	STRING
 				struct dect_handle_priv *priv;
 
 				priv = dect_handle_get_by_name($1);
+				free($1);
+
 				if (priv == NULL) {
 					char buf[256];
 
@@ -299,6 +301,7 @@ mncc_setup_req		:	MNCC_SETUP_REQ	'(' cluster mncc_setup_param_alloc ',' mncc_set
 
 				call = dect_call_alloc(dh);
 				dect_mncc_setup_req(dh, call, &ipui, $4);
+				dect_ie_collection_put(dh, $4);
 			}
 
 mncc_setup_param_alloc	:
@@ -343,6 +346,9 @@ mncc_setup_param	:	portable_identity_ie
 
 mncc_info_req		:	MNCC_INFO_REQ	'(' cluster mncc_info_param_alloc ',' mncc_info_params ')'
 			{
+				struct dect_handle *dh = $3;
+
+				dect_ie_collection_put(dh, $4);
 			}
 			;
 
@@ -389,6 +395,8 @@ mnss_facility_req	:	MNSS_FACILITY_REQ	'(' cluster mnss_param_alloc ',' mnss_para
 
 				sse = dect_ss_endpoint_alloc(dh, &ipui);
 				dect_mnss_facility_req(dh, sse, $4);
+				dect_ie_collection_put(dh, $4);
+
 			}
 			;
 
@@ -438,6 +446,7 @@ portable_identity_ie_param:	IPEI	'='	STRING
 				struct dect_ie_portable_identity *ie = dect_ie_container(ie, $<ie>-1);
 
 				dect_parse_ipei_string(&ie->ipui.pun.n.ipei, $3);
+				free($3);
 			}
 			;
 
@@ -462,6 +471,7 @@ keypad_ie_param		:	INFO	'='	STRING
 
 				ie->len = strlen($3);
 				memcpy(ie->info, $3, ie->len);
+				free($3);
 			}
 			;
 
@@ -570,6 +580,7 @@ etp_ie_param		:	EMC	'='	NUMBER
 
 				ie->len = strlen($3);
 				memcpy(ie->content, $3, ie->len);
+				free($3);
 			}
 			;
 

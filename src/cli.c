@@ -177,4 +177,5 @@ void cli_exit(void)
 	rl_callback_handler_remove();
 	rl_deprep_terminal();
 	write_history(histfile);
+	clear_history();
 }

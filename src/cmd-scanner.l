@@ -171,7 +171,10 @@ void scanner_push_buffer(void *scanner, const char *buffer)
 	struct parser_state *state = yyget_extra(scanner);
 	YY_BUFFER_STATE b;
 
+	if (state->buffer_state != NULL)
+		yy_delete_buffer(state->buffer_state, scanner);
 	b = yy_scan_string(buffer, scanner);
+	state->buffer_state = b;
 	init_pos(state);
 }
 
@@ -188,5 +191,9 @@ void *scanner_init(struct parser_state *state)
 
 void scanner_destroy(struct parser_state *scanner)
 {
+	struct parser_state *state = yyget_extra(scanner);
+
+	if (state->buffer_state != NULL)
+		yy_delete_buffer(state->buffer_state, scanner);
 	yylex_destroy(scanner);
 }

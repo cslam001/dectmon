@@ -248,12 +248,22 @@ static struct dect_handle *dectmon_open_handle(struct dect_ops *ops,
 	return dh;
 }
 
+static void dectmon_close_handle(struct dect_handle_priv *priv)
+{
+	struct dect_handle *dh = priv->dh;
+
+	if (dect_timer_running(priv->lock_timer))
+		dect_timer_stop(dh, priv->lock_timer);
+	dect_timer_free(dh, priv->lock_timer);
+	dect_close_handle(dh);
+}
+
 int main(int argc, char **argv)
 {
 	const char *cluster[DECT_MAX_CLUSTERS] = {};
 	unsigned int ncluster = 0, i;
+	struct dect_handle_priv *priv, *next;
 	struct dect_handle *dh;
-	struct dect_fd *dfd;
 	int optidx = 0, c;
 
 	for (;;) {
@@ -301,7 +311,7 @@ int main(int argc, char **argv)
 
 	dect_event_ops_init(&ops);
 	dect_dummy_ops_init(&ops);
-	dect_audio_init();
+	//dect_audio_init();
 
 	cli_init(stdin);
 	dect_set_debug_hook(dect_debug);
@@ -311,9 +321,10 @@ int main(int argc, char **argv)
 
 	for (i = 0; i < ncluster; i++) {
 		dh = dectmon_open_handle(&ops, cluster[i]);
+		priv = dect_handle_priv(dh);
 
-		dfd = dect_raw_socket(dh);
-		if (dfd == NULL)
+		priv->rawsk = dect_raw_open(dh);
+		if (priv->rawsk == NULL)
 			pexit("dect_raw_socket");
 
 		if (scan)
@@ -321,6 +332,12 @@ int main(int argc, char **argv)
 	}
 
 	dect_event_loop();
+
+	list_for_each_entry_safe(priv, next, &dect_handles, list) {
+		dect_raw_close(priv->dh, priv->rawsk);
+		dectmon_close_handle(priv);
+	}
+
 	cli_exit();
 	return 0;
 }

@@ -121,6 +121,7 @@ static struct dect_msg_buf *dect_lc_reassemble(struct dect_handle *dh,
 
 err:
 	lc_debug(lc, "reassembly failed\n");
+	dect_mbuf_free(dh, mb);
 	return NULL;
 }
 
@@ -139,8 +140,23 @@ void dect_mac_co_data_ind(struct dect_handle *dh, struct dect_mac_con *mc,
 	}
 
 	mb = dect_lc_reassemble(dh, mc->lc, chan, mb);
-	if (mb != NULL && mb->len > DECT_FA_HDR_SIZE) {
-		dect_mbuf_pull(mb, DECT_FA_HDR_SIZE);
-		dect_dl_data_ind(dh, &mc->tbc->dl, mb);
+	if (mb != NULL) {
+		if (mb->len > DECT_FA_HDR_SIZE) {
+			dect_mbuf_pull(mb, DECT_FA_HDR_SIZE);
+			dect_dl_data_ind(dh, &mc->tbc->dl, mb);
+		} else
+			dect_mbuf_free(dh, mb);
 	}
+}
+
+void dect_mac_dis_ind(struct dect_handle *dh, struct dect_mac_con *mc)
+{
+	struct dect_lc *lc;
+
+	lc = mc->lc;
+	if (lc == NULL)
+		return;
+	if (lc->rx_buf != NULL)
+		dect_mbuf_free(dh, lc->rx_buf);
+	free(lc);
 }

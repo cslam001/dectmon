@@ -16,6 +16,7 @@ struct location {
 };
 
 struct parser_state {
+	void		*buffer_state;
 	unsigned int	lineno;
 	unsigned int	column;
 	off_t		token_offset;
