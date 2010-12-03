@@ -271,17 +271,17 @@ cluster			:	STRING
 				struct dect_handle_priv *priv;
 
 				priv = dect_handle_get_by_name($1);
-				free($1);
-
 				if (priv == NULL) {
 					char buf[256];
 
 					snprintf(buf, sizeof(buf), "cluster '%s' does not exist\n", $1);
+					free($1);
 					yyerror(&@1, scanner, state, buf);
 					YYABORT;
-				} else
+				} else {
+					free($1);
 					$$ = priv->dh;
-
+				}
 			}
 			;
 
@@ -408,6 +408,9 @@ mnss_param_alloc	:
 			;
 
 mnss_params		:	mnss_param
+			{
+				$$ = $<mnss_param>-1;
+			}
 			|	mnss_params ',' mnss_param
 			;
 
