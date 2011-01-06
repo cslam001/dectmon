@@ -14,6 +14,7 @@ enum {
 	DECTMON_DUMP_MAC	= 0x1,
 	DECTMON_DUMP_DLC	= 0x2,
 	DECTMON_DUMP_NWK	= 0x4,
+	DECTMON_DUMP_AUDIO	= 0x8,
 };
 
 extern const char *auth_pin;

@@ -157,7 +157,7 @@ static void dect_debug(enum dect_debug_subsys subsys, const char *fmt,
 	}
 }
 
-#define OPTSTRING "c:sm:d:n:p:l:d:h"
+#define OPTSTRING "c:sm:d:n:a:p:l:w:h"
 
 enum {
 	OPT_CLUSTER	= 'c',
@@ -165,6 +165,7 @@ enum {
 	OPT_DUMP_MAC	= 'm',
 	OPT_DUMP_DLC	= 'd',
 	OPT_DUMP_NWK	= 'n',
+	OPT_AUDIO	= 'a',
 	OPT_AUTH_PIN	= 'p',
 	OPT_LOGFILE	= 'l',
 	OPT_DUMPFILE	= 'w',
@@ -177,6 +178,7 @@ static const struct option dectmon_opts[] = {
 	{ .name = "dump-mac", .has_arg = true,  .flag = 0, .val = OPT_DUMP_MAC, },
 	{ .name = "dump-dlc", .has_arg = true,  .flag = 0, .val = OPT_DUMP_DLC, },
 	{ .name = "dump-nwk", .has_arg = true,  .flag = 0, .val = OPT_DUMP_NWK, },
+	{ .name = "audio",    .has_arg = true,  .flag = 0, .val = OPT_AUDIO, },
 	{ .name = "auth-pin", .has_arg = true,  .flag = 0, .val = OPT_AUTH_PIN, },
 	{ .name = "logfile",  .has_arg = true,  .flag = 0, .val = OPT_LOGFILE, },
 	{ .name = "dumpfile", .has_arg = true,	.flag = 0, .val = OPT_DUMPFILE, },
@@ -200,6 +202,7 @@ static void dectmon_help(const char *progname)
 	       "  -m/--dump-mac=yes/no		Dump MAC layer messages (default: no)\n"
 	       "  -d/--dump-dlc=yes/no		Dump DLC layer messages (default: no)\n"
 	       "  -n/--dump-nwk=yes/no		Dump NWK layer messages (default: yes)\n"
+	       "  -a/--audio=yes/no		Enable audio playback (default: no)\n"
 	       "  -p/--auth-pin=PIN		Authentication PIN for Key Allocation\n"
 	       "  -l/--logfile=NAME		Log output to file\n"
 	       "  -d/--dumpfile=NAME		Dump raw frames to file\n"
@@ -287,6 +290,9 @@ int main(int argc, char **argv)
 		case OPT_DUMP_NWK:
 			dumpopts = opt_yesno(optarg, dumpopts, DECTMON_DUMP_NWK);
 			break;
+		case OPT_AUDIO:
+			dumpopts = opt_yesno(optarg, dumpopts, DECTMON_DUMP_AUDIO);
+			break;
 		case OPT_AUTH_PIN:
 			auth_pin = optarg;
 			break;
@@ -311,7 +317,9 @@ int main(int argc, char **argv)
 
 	dect_event_ops_init(&ops);
 	dect_dummy_ops_init(&ops);
-	//dect_audio_init();
+
+	if (dumpopts & DECTMON_DUMP_AUDIO)
+		dect_audio_init();
 
 	cli_init(stdin);
 	dect_set_debug_hook(dect_debug);

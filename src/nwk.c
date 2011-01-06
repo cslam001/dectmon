@@ -343,7 +343,8 @@ static void dect_pt_track_audio(struct dect_handle *dh,
 			break;
 		/* fall through */
 	case DECT_CC_CONNECT:
-		if (pt->ah == NULL)
+		if (dumpopts & DECTMON_DUMP_AUDIO &&
+		    pt->ah == NULL)
 			pt->ah = dect_audio_open();
 		break;
 	case DECT_CC_RELEASE:
